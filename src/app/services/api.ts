@@ -11,13 +11,20 @@ async function fetchJson<T>(path: string): Promise<T> {
     throw new Error(`Error ${response.status}: ${message}`);
   }
 
-  return response.json();
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    return response.json();
+  }
+
+  const text = await response.text();
+  throw new Error(`Expected JSON response but received: ${text.slice(0,200)}`);
 }
 
 export async function getClientes(): Promise<Cliente[]> {
   return fetchJson<Cliente[]>('/api/data/clientes');
 }
 
+// Llama al endpoint que ejecuta la consulta definida en clientesController.js
 export async function getClientesApi(): Promise<Cliente[]> {
   return fetchJson<Cliente[]>('/api/clientes');
 }

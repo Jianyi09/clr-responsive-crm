@@ -207,7 +207,7 @@ export function Dashboard() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredClientes.slice(0, 6).map((cliente) => (
-              <Link key={cliente.id} to="/clientes">
+              <Link key={cliente.id_clientes} to="/clientes">
                 <Card className="hover:shadow-md transition-shadow cursor-pointer">
                   <CardContent className="pt-6">
                     <div className="flex items-start justify-between mb-3">
@@ -219,12 +219,12 @@ export function Dashboard() {
                       </Badge>
                     </div>
                     <h4 className="font-semibold text-gray-900 mb-2 line-clamp-2">
-                      {cliente.razonSocial}
+                      {cliente.razon_social}
                     </h4>
                     <div className="space-y-1 text-sm text-gray-600">
                       <div className="flex items-center">
                         <MapPin className="w-3 h-3 mr-1" />
-                        <span className="line-clamp-1">{cliente.estado} - {cliente.zona}</span>
+                        <span className="line-clamp-1">{cliente.estado} - {cliente.ciudad}</span>
                       </div>
                       <p className="line-clamp-1">{cliente.contacto}</p>
                     </div>

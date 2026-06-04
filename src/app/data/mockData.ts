@@ -2,6 +2,7 @@ export interface Cliente {
   id_clientes: number;
   razon_social: string;
   rif_dni: string;
+  ciudad: string;
   estado: string;
   numero_telefonico: string;
   correo_electronico: string;
@@ -45,7 +46,7 @@ export interface Equipo {
 
 export const ESTADOS = ['La Romana', 'Santo Domingo', 'Santiago', 'La Vega', 'San Pedro'];
 
-export const ZONAS: Record<string, string[]> = {
+export const CIUDADES: Record<string, string[]> = {
   'La Romana': ['Centro', 'Este', 'Norte', 'Sur'],
   'Santo Domingo': ['Nacional', 'Oriental', 'Norte', 'Este'],
   'Santiago': ['Centro', 'Norte', 'Sur'],

@@ -21,7 +21,8 @@ import { Building2, MapPin, Phone, Mail, Search, Plus } from 'lucide-react';
 import { type Cliente } from '../data/mockData';
 
 // Importamos la función encargada de comunicarse con el servidor/backend para traer los datos
-import { getClientes } from '../services/api';
+// Usamos el endpoint de clientesController para obtener estado, ciudad y equipos registrados.
+import { getClientesApi } from '../services/api';
 
 // Importamos el componente de la ventana emergente (modal) para crear, editar o eliminar clientes
 import { ClienteModal } from '../components/modals/ClienteModal';
@@ -70,14 +71,14 @@ export function Clientes() {
     async function loadClientes() {
       try {
         // 1. Llama a la función de la API que conecta con tu backend
-        const clientesData = await getClientes();
+        const clientesData = await getClientesApi();
         
         // 2. "Inyecta" los datos recibidos de la base de datos en el estado local de React
         setClientes(clientesData);
       } catch (err) {
         // Si hay un error de red o de base de datos, lo muestra en la consola y activa el estado de error
         console.error(err);
-        setError('No se pudo cargar la lista de clientes.');
+        setError(err instanceof Error ? `No se pudo cargar la lista de clientes: ${err.message}` : 'No se pudo cargar la lista de clientes.');
       } finally {
         // Tanto si la petición tuvo éxito como si falló, apagamos el estado de carga
         setLoading(false);

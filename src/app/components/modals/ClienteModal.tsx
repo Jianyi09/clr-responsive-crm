@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { Building2, Edit, Trash2, X, Save, MapPin, Phone, Mail, User, Hash } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { ESTADOS, ZONAS, type Cliente } from '../../data/mockData';
+import { ESTADOS, CIUDADES, type Cliente } from '../../data/mockData';
 import { toast } from 'sonner';
 
 interface ClienteModalProps {
@@ -38,7 +38,7 @@ export function ClienteModal({
     razonSocial: '',
     rifDni: '',
     estado: '',
-    zona: '',
+    ciudad: '',
     telefono: '',
     correo: '',
     contacto: '',
@@ -54,7 +54,7 @@ export function ClienteModal({
         razonSocial: '',
         rifDni: '',
         estado: '',
-        zona: '',
+        ciudad: '',
         telefono: '',
         correo: '',
         contacto: '',
@@ -67,7 +67,7 @@ export function ClienteModal({
         razonSocial: cliente.razon_social,
         rifDni: cliente.rif_dni,
         estado: cliente.estado,
-        zona: cliente.zona,
+        ciudad: cliente.ciudad,
         telefono: cliente.numero_telefonico,
         correo: cliente.correo_electronico,
         contacto: cliente.contacto,
@@ -78,7 +78,7 @@ export function ClienteModal({
   }, [cliente, isCreating, isOpen]);
 
   const handleEstadoChange = (estado: string) => {
-    setFormData({ ...formData, estado, zona: '' });
+    setFormData({ ...formData, estado, ciudad: '' });
   };
 
   const validateForm = () => {
@@ -101,8 +101,8 @@ export function ClienteModal({
     if (!formData.estado) {
       newErrors.estado = 'El estado es requerido';
     }
-    if (!formData.zona) {
-      newErrors.zona = 'La zona es requerida';
+    if (!formData.ciudad) {
+      newErrors.ciudad = 'La ciudad es requerida';
     }
     if (!formData.telefono.trim()) {
       newErrors.telefono = 'El teléfono es requerido';
@@ -133,6 +133,7 @@ export function ClienteModal({
       razon_social: formData.razonSocial,
       rif_dni: formData.rifDni,
       estado: formData.estado,
+      ciudad: formData.ciudad,
       numero_telefonico: formData.telefono,
       correo_electronico: formData.correo,
       contacto: formData.contacto,
@@ -162,7 +163,7 @@ export function ClienteModal({
           razonSocial: cliente.razon_social,
           rifDni: cliente.rif_dni,
           estado: cliente.estado,
-          zona: cliente.zona,
+          ciudad: cliente.ciudad,
           telefono: cliente.numero_telefonico,
           correo: cliente.correo_electronico,
           contacto: cliente.contacto,
@@ -173,7 +174,7 @@ export function ClienteModal({
     }
   };
 
-  const zonasDisponibles = formData.estado ? ZONAS[formData.estado] || [] : [];
+  const ciudadesDisponibles = formData.estado ? CIUDADES[formData.estado] || [] : [];
 
   return (
     <>
@@ -207,8 +208,8 @@ export function ClienteModal({
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500 mb-1">Zona</p>
-                    <p className="font-medium">{formData.zona}</p>
+                    <p className="text-sm text-gray-500 mb-1">Ciudad</p>
+                    <p className="font-medium">{formData.ciudad}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Teléfono</p>
@@ -310,23 +311,23 @@ export function ClienteModal({
                   </div>
 
                   <div>
-                    <Label htmlFor="zona">Zona *</Label>
+                    <Label htmlFor="ciudad">Ciudad *</Label>
                     <Select
-                      value={formData.zona}
-                      onValueChange={(zona) => setFormData({ ...formData, zona })}
+                      value={formData.ciudad}
+                      onValueChange={(ciudad) => setFormData({ ...formData, ciudad })}
                       disabled={!formData.estado}
                     >
-                      <SelectTrigger className={errors.zona ? 'border-red-500' : ''}>
-                        <SelectValue placeholder="Seleccionar zona" />
+                      <SelectTrigger className={errors.ciudad ? 'border-red-500' : ''}>
+                        <SelectValue placeholder="Seleccionar ciudad" />
                       </SelectTrigger>
                       <SelectContent>
-                        {zonasDisponibles.map(zona => (
-                          <SelectItem key={zona} value={zona}>{zona}</SelectItem>
+                        {ciudadesDisponibles.map(ciudad => (
+                          <SelectItem key={ciudad} value={ciudad}>{ciudad}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    {errors.zona && (
-                      <p className="text-xs text-red-500 mt-1">{errors.zona}</p>
+                    {errors.ciudad && (
+                      <p className="text-xs text-red-500 mt-1">{errors.ciudad}</p>
                     )}
                   </div>
 

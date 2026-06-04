@@ -1,4 +1,23 @@
 import pool from '../db/index.js';
+/**
+ * @returns {Promise<Object>} Un objeto con la estructura { [id_cliente]: cantidad_equipos }
+ */
+export async function getConteEquiposPorCliente() {
+  const query = `
+    SELECT id_cliente, COUNT(id_equipo)::INT AS total 
+    FROM "Equipos_Clientes" 
+    GROUP BY id_cliente
+  `;
+  const res = await pool.query(query);
+  
+  // Convertimos el array de filas en un objeto indexado para búsquedas instantáneas O(1)
+  const conteoMap = {};
+  res.rows.forEach(row => {
+    conteoMap[row.id_cliente] = row.total;
+  });
+  
+  return conteoMap;
+}
 
 export function extractFilterSelections(query) {
   return {
