@@ -29,12 +29,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div
-      className="min-h-screen bg-blue-200"
-      style={{
-        backgroundImage: "url('/img/fondo_sistema_acess.png')",
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-      }}
+      className="min-h-screen bg-slate-50"
     >
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">

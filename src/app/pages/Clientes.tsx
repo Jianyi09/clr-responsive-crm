@@ -63,6 +63,11 @@ export function Clientes() {
   // Guarda un mensaje de error string en caso de que la conexión con el servidor falle
   const [error, setError] = useState('');
 
+  // Estado que almacena un catálogo de ubicaciones (estados y ciudades) para mostrar en los dropdowns del modal
+  const [catalogUbicaciones, setCatalogUbicaciones] = useState<Record<string, string[]>>({});
+ // Estado que almacena una lista de estados para mostrar en el dropdown del modal
+  const [listaEstados, setListaEstados] = useState<string[]>([]);
+
   // ==========================================
   // 4. EFECTOS (EFECTO DE CARGA INICIAL - BACKEND)
   // ==========================================
@@ -89,6 +94,20 @@ export function Clientes() {
     loadClientes();
   }, []); // El array vacío [] asegura que esto solo ocurra UNA VEZ al cargar la página
 
+  useEffect(() => {
+    const cargarUbicaciones = async () => {
+      try {
+        const response = await fetch('http://localhost:4000/api/clientes/ubicaciones');
+        const data = await response.json();
+        setCatalogUbicaciones(data);
+        setListaEstados(Object.keys(data)); // Almacena los estados disponibles basados en las llaves del JSON
+      } catch (error) {
+        console.error('Error al conectar catálogo geográfico:', error);
+      }
+    };
+    cargarUbicaciones();
+  }, []);
+
   // ==========================================
   // 5. LÓGICA DE FILTRADO (BÚSQUEDA EN TIEMPO REAL)
   // ==========================================
@@ -98,20 +117,32 @@ export function Clientes() {
     // Si la barra de búsqueda está vacía, devuelve todos los clientes de la base de datos directamente
     if (!searchQuery) return clientes;
     
-    const query = searchQuery.toLowerCase(); // Convertimos la búsqueda a minúsculas para que no importen las mayúsculas
+    const query = searchQuery.toLowerCase().trim(); // Convertimos la búsqueda a minúsculas para que no importen las mayúsculas
     
     // Filtramos el array buscando coincidencias en múltiples campos del objeto cliente
     return clientes.filter(
-      (cliente) =>
-        cliente.razon_social.toLowerCase().includes(query) ||
-        cliente.rif_dni.toLowerCase().includes(query) ||
-        cliente.contacto.toLowerCase().includes(query) ||
-        cliente.estado.toLowerCase().includes(query) ||
-        cliente.numero_telefonico.toLowerCase().includes(query) ||
-        cliente.correo_electronico.toLowerCase().includes(query)
-    );
-  }, [clientes, searchQuery]);
+      (cliente) => {
+        const razonSocial = (cliente.razon_social || '').toLowerCase();
+        const rifDni = (cliente.rif_dni || '').toLowerCase();
+        const contacto = (cliente.contacto || '').toLowerCase();
+        const estadoName = (cliente.estado || '').toLowerCase();
+        const ciudadName = (cliente.ciudad || '').toLowerCase();
+        const direccionCompleta = (cliente.direccion || '').toLowerCase();
+        const telefono = (cliente.numero_telefonico || '').toLowerCase();
+        const correo = (cliente.correo_electronico || '').toLowerCase();
 
+        return (
+          razonSocial.includes(query) ||
+          rifDni.includes(query) ||
+          contacto.includes(query) ||
+          estadoName.includes(query) ||
+          ciudadName.includes(query) ||
+          direccionCompleta.includes(query) ||
+          telefono.includes(query) ||
+          correo.includes(query)
+        );
+      });
+    }, [clientes, searchQuery]);
   // ==========================================
   // 6. MANEJADORES DE EVENTOS (INTERACCIONES)
   // ==========================================
@@ -130,44 +161,67 @@ export function Clientes() {
     setIsModalOpen(true);        // Abre el modal en pantalla
   };
 
-  // Se ejecuta cuando el usuario presiona "Guardar" DENTRO del modal
-  const handleSaveCliente = (clienteData: Omit<Cliente, 'id_clientes' | 'equiposRegistrados'>) => {
-    if (selectedCliente) {
-      // --- MODO EDICIÓN ---
-      // Mapea la lista actual de clientes. Si encuentra el ID que estamos editando,
-      // combina los datos anteriores (...c) con los nuevos del formulario (...clienteData).
-      setClientes(prev =>
-        prev.map(c =>
-          c.id_clientes === selectedCliente.id_clientes
-            ? { ...c, ...clienteData }
-            : c
-        )
-      );
-      // PENDIENTE: Aquí agregarás el llamado asíncrono para actualizar tu BD real:
-      // await updateCliente(selectedCliente.id_clientes, clienteData);
-    } else {
-      // --- MODO CREACIÓN ---
-      // Crea un objeto estructurado temporal simulando lo que haría la base de datos
-      const newCliente: Cliente = {
-        ...clienteData,
-        id_clientes: Date.now(), // ID temporal basado en la hora/fecha actual en milisegundos
-        equiposRegistrados: 0,   // Un cliente nuevo inicia con cero equipos asociados
-      };
-      // Agrega el nuevo cliente al principio de la lista visual
-      setClientes(prev => [newCliente, ...prev]);
-      // PENDIENTE: Aquí agregarás el llamado asíncrono para guardar en tu BD real:
-      // await createCliente(clienteData);
+  // Se ejecuta cuando el usuario presiona "Guardar" DENTRO del modal (conexion con BACKEND)
+  const handleSaveCliente = async (clienteData: Omit<Cliente, 'id_clientes' | 'equiposRegistrados'>) => {
+    try {
+      // 1. Definimos la URL y el método HTTP correcto dinámicamente según la acción
+      const url = isCreating 
+        ? 'http://localhost:4000/api/clientes' 
+        : `http://localhost:4000/api/clientes/${selectedCliente?.id_clientes}`;
+        
+      const method = isCreating ? 'POST' : 'PUT';
+
+      // 2. Ejecutamos la petición al servidor mandando el JSON con los datos del formulario
+      const response = await fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(clienteData),
+      });
+
+      if (response.ok) {
+        // 3. Si la base de datos procesó el cambio con éxito, refrescamos la lista principal
+        // llamando a la misma función que usas en el useEffect de carga inicial
+        const clientesData = await getClientesApi();
+        setClientes(clientesData);
+        
+        setIsModalOpen(false); // Cerramos el modal solo si se guardó con éxito
+      } else {
+        const errorData = await response.json();
+        console.error('Error del servidor:', errorData.error);
+        alert(`Error al guardar: ${errorData.error || 'Inténtalo de nuevo.'}`);
+      }
+    } catch (error) {
+      console.error('Error de red al intentar guardar:', error);
+      alert('No se pudo conectar con el servidor backend.');
     }
-    setIsModalOpen(false); // Cierra la ventana flotante una vez guardado
   };
 
   // Se ejecuta cuando el usuario presiona "Eliminar" DENTRO del modal de un cliente
-  const handleDeleteCliente = (id: number) => {
-    // Filtra la lista actual excluyendo el cliente que tenga el ID que queremos borrar
-    setClientes(prev => prev.filter(c => c.id_clientes !== id));
-    setIsModalOpen(false); // Cierra la ventana flotante
-    // PENDIENTE: Aquí agregarás el llamado asíncrono para borrar en tu BD real:
-    // await deleteCliente(id);
+  const handleDeleteCliente = async (id: number) => {
+    // Una pequeña confirmación de seguridad antes de borrar de la base de datos real
+    if (!window.confirm('¿Estás segura de que deseas eliminar este cliente de forma permanente?')) {
+      return;
+    }
+
+    try {
+      // 1. Enviamos la petición DELETE al puerto 4000 con el ID en los parámetros
+      const response = await fetch(`http://localhost:4000/api/clientes/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        // 2. Si el servidor borró la fila, lo quitamos de la UI inmediatamente
+        setClientes(prev => prev.filter(c => c.id_clientes !== id));
+        setIsModalOpen(false); // Cerramos la ventana flotante
+      } else {
+        const errorData = await response.json();
+        console.error('Error al eliminar:', errorData.error);
+        alert(`No se pudo eliminar: ${errorData.error}`);
+      }
+    } catch (error) {
+      console.error('Error de conexión al intentar eliminar:', error);
+      alert('Error de red al intentar eliminar el registro.');
+    }
   };
 
   // ==========================================
@@ -219,7 +273,7 @@ export function Clientes() {
       <Card>
         <CardContent className="pt-6">
           <div className="relative">
-            <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+            <Search className="absolute left-3 top-2 h-5 w-5 text-gray-400" />
             {/* Input conectado bidireccionalmente con el estado 'searchQuery' */}
             <Input
               type="text"

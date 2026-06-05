@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+// Componentes de interfaz basados en Radix UI / Shadcn
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -6,19 +7,27 @@ import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
+// Librería de iconos vectoriales para la interfaz
 import { Building2, Edit, Trash2, X, Save, MapPin, Phone, Mail, User, Hash } from 'lucide-react';
+// Contexto de autenticación para control de accesos basados en roles
 import { useAuth } from '../../context/AuthContext';
+// Estructuras de datos locales e interfaces de tipado estático
 import { ESTADOS, CIUDADES, type Cliente } from '../../data/mockData';
+// Notificaciones flotantes en tiempo real
 import { toast } from 'sonner';
 
+/**
+ * Definición de las propiedades (Props) del componente ClienteModal.
+ */
 interface ClienteModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  cliente: Cliente | null;
-  isCreating: boolean;
+  isOpen: boolean;             // Controla la visibilidad del modal superior
+  onClose: () => void;         // Función disparada al cerrar el componente
+  cliente: Cliente | null;     // Datos del cliente seleccionado (null si se está creando)
+  isCreating: boolean;         // Flag booleano que determina si es un nuevo registro
+  // onSave: Recibe los datos omitiendo los campos autogenerados por PostgreSQL
   onSave: (clienteData: Omit<Cliente, 'id_clientes' | 'equiposRegistrados'>) => void;
-  onDelete: (id: number) => void;
-  allClientes: Cliente[];
+  onDelete: (id: number) => void; // Función encargada de despachar la remoción física/lógica
+  allClientes: Cliente[];      // Arreglo completo en memoria utilizado para validaciones cruzadas (duplicados)
 }
 
 export function ClienteModal({
@@ -30,10 +39,16 @@ export function ClienteModal({
   onDelete,
   allClientes,
 }: ClienteModalProps) {
+  // Extrae el rol de usuario para habilitar/deshabilitar acciones críticas de escritura
   const { isAdmin } = useAuth();
+  
+  // Estado que determina si la vista actual es de sólo lectura o edición/escritura
   const [mode, setMode] = useState<'view' | 'edit'>('view');
+  
+  // Estado para controlar la apertura del sub-modal de alerta para eliminación
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
+  // Estado estructurado del formulario (Frontend) mapeado semánticamente
   const [formData, setFormData] = useState({
     razonSocial: '',
     rifDni: '',
@@ -45,8 +60,13 @@ export function ClienteModal({
     direccion: '',
   });
 
+  // Estado que almacena strings de error indexados por cada clave del formulario
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  /**
+   * Sincroniza los estados internos del formulario cada vez que el ciclo de vida del modal
+   * se ve alterado por un cambio de cliente, acción de creación o visibilidad.
+   */
   useEffect(() => {
     if (isCreating) {
       setMode('edit');
@@ -63,6 +83,7 @@ export function ClienteModal({
       setErrors({});
     } else if (cliente) {
       setMode('view');
+      // Mapea las propiedades snake_case de PostgreSQL a la estructura camelCase del formulario local
       setFormData({
         razonSocial: cliente.razon_social,
         rifDni: cliente.rif_dni,
@@ -77,10 +98,18 @@ export function ClienteModal({
     }
   }, [cliente, isCreating, isOpen]);
 
+  /**
+   * Maneja el cambio de estado regional, reseteando la ciudad seleccionada
+   * para evitar inconsistencias geográficas en los selects anidados.
+   */
   const handleEstadoChange = (estado: string) => {
     setFormData({ ...formData, estado, ciudad: '' });
   };
 
+  /**
+   * Valida las reglas de negocio del formulario en el Frontend antes de enviar datos a la API.
+   * Retorna true si el formulario es completamente válido.
+   */
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
@@ -90,7 +119,7 @@ export function ClienteModal({
     if (!formData.rifDni.trim()) {
       newErrors.rifDni = 'El RIF/DNI es requerido';
     } else {
-      // Verificar duplicados
+      // Región de Validación Cruzada: Previene duplicación de identificadores fiscales únicos (RIF)
       const isDuplicate = allClientes.some(
         c => c.rif_dni === formData.rifDni && c.id_clientes !== cliente?.id_clientes
       );
@@ -107,6 +136,7 @@ export function ClienteModal({
     if (!formData.telefono.trim()) {
       newErrors.telefono = 'El teléfono es requerido';
     }
+    // Validación sintáctica del correo mediante expresiones regulares (RegEx)
     if (!formData.correo.trim()) {
       newErrors.correo = 'El correo es requerido';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.correo)) {
@@ -123,12 +153,16 @@ export function ClienteModal({
     return Object.keys(newErrors).length === 0;
   };
 
+  /**
+   * Procesa el guardado seguro de la información tras superar la capa de validación.
+   */
   const handleSave = () => {
     if (!validateForm()) {
       toast.error('Por favor, corrija los errores en el formulario');
       return;
     }
 
+    // Convierte la estructura camelCase del formulario de vuelta al molde exacto que espera PostgreSQL
     const clienteData: Omit<Cliente, 'id_clientes' | 'equiposRegistrados'> = {
       razon_social: formData.razonSocial,
       rif_dni: formData.rifDni,
@@ -145,6 +179,9 @@ export function ClienteModal({
     onClose();
   };
 
+  /**
+   * Ejecuta la remoción lógica o física del cliente delegando el identificador único al ancestro.
+   */
   const handleDelete = () => {
     if (cliente) {
       onDelete(cliente.id_clientes);
@@ -153,6 +190,10 @@ export function ClienteModal({
     }
   };
 
+  /**
+   * Cancela la operación en curso, revirtiendo los cambios locales al estado inicial
+   * del objeto cliente provisto por las propiedades.
+   */
   const handleCancel = () => {
     if (isCreating) {
       onClose();
@@ -174,22 +215,28 @@ export function ClienteModal({
     }
   };
 
-  const ciudadesDisponibles = formData.estado ? CIUDADES[formData.estado] || [] : [];
+  // Filtrado reactivo en tiempo de ejecución de las ciudades asociadas al estado seleccionado
+  // Dentro de tu ClienteModal, cambia la línea 158 por:
+  const ciudadesDisponibles = formData.estado ? catalogUbicaciones[formData.estado] || [] : [];
 
   return (
     <>
+      {/* Modal Principal de Clientes */}
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Building2 className="w-5 h-5 text-[#0066CC]" />
+              {/* Encabezado Dinámico basado en la máquina de estados local */}
               {isCreating ? 'Registrar Nuevo Cliente' : mode === 'view' ? 'Detalles del Cliente' : 'Editar Cliente'}
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             {mode === 'view' ? (
-              // Vista de lectura
+              // ==========================================
+              // VISTA DE LECTURA (SÓLO ACCESIBLE / CONSULTA)
+              // ==========================================
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -232,6 +279,7 @@ export function ClienteModal({
                       {formData.contacto}
                     </p>
                   </div>
+                  {/* El totalizador de equipos sólo se renderiza si el cliente ya existe físicamente */}
                   {cliente && (
                     <div>
                       <p className="text-sm text-gray-500 mb-1">Equipos Registrados</p>
@@ -248,7 +296,9 @@ export function ClienteModal({
                 </div>
               </div>
             ) : (
-              // Vista de edición
+              // ==========================================
+              // VISTA DE EDICIÓN / ESCRITURA (FORMULARIO ACTIVO)
+              // ==========================================
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="md:col-span-2">
@@ -315,7 +365,7 @@ export function ClienteModal({
                     <Select
                       value={formData.ciudad}
                       onValueChange={(ciudad) => setFormData({ ...formData, ciudad })}
-                      disabled={!formData.estado}
+                      disabled={!formData.estado} // Bloqueado reactivamente si no hay estado previo
                     >
                       <SelectTrigger className={errors.ciudad ? 'border-red-500' : ''}>
                         <SelectValue placeholder="Seleccionar ciudad" />
@@ -379,6 +429,7 @@ export function ClienteModal({
             )}
           </div>
 
+          {/* Acciones de Footer Condicionales según los permisos del usuario y el modo activo */}
           <DialogFooter>
             {isAdmin && mode === 'view' ? (
               <>
@@ -411,14 +462,14 @@ export function ClienteModal({
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Sub-Modal de Alerta: Confirmación Crítica de Eliminación (Radix AlertDialog) */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Está seguro de eliminar este cliente?</AlertDialogTitle>
             <AlertDialogDescription>
               Esta acción no se puede deshacer. Se eliminará permanentemente el cliente
-              <strong> {formData.razonSocial}</strong>.
+              <strong> {formData.razonSocial}</strong> y sus dependencias asociadas.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

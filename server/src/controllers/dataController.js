@@ -3,7 +3,7 @@ const catalogs = {
   equipos: { table: 'Equipos_Clientes', orderBy: 'id_equipo' },
   modelos: { table: 'Modelos_Equipos', orderBy: 'id_modelo' },
   marcas: { table: 'Marcas', orderBy: 'id_marca' },
-  tiposEquipo: { table: 'Tipos_Equipo', orderBy: 'id_tipo_equipo' },
+  tiposEquipo: { table: 'TiposEquipo', orderBy: 'id_tipo_equipo' },
 };
 
 export async function getCatalogData(req, res) {
