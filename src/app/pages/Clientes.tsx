@@ -75,17 +75,17 @@ export function Clientes() {
     // Definimos una función asíncrona interna para poder usar 'await' al llamar a la API
     async function loadClientes() {
       try {
-        // 1. Llama a la función de la API que conecta con tu backend
-        const clientesData = await getClientesApi();
-        
-        // 2. "Inyecta" los datos recibidos de la base de datos en el estado local de React
-        setClientes(clientesData);
+        const clientesData = await getClientesApi(); // Llama a la función que hace la petición al backend para obtener los clientes
+        if (Array.isArray(clientesData)) { 
+          setClientes(clientesData); //
+        } else {
+          setClientes([]);
+          setError('El servidor devolvió un formato de datos inesperado.');
+        }
       } catch (err) {
-        // Si hay un error de red o de base de datos, lo muestra en la consola y activa el estado de error
         console.error(err);
-        setError(err instanceof Error ? `No se pudo cargar la lista de clientes: ${err.message}` : 'No se pudo cargar la lista de clientes.');
+        setError(err instanceof Error ? `No se pudo conectar al servidor: ${err.message}` : 'No se pudo cargar la lista de clientes.');
       } finally {
-        // Tanto si la petición tuvo éxito como si falló, apagamos el estado de carga
         setLoading(false);
       }
     }
@@ -115,6 +115,7 @@ export function Clientes() {
   // Solo se vuelve a calcular si el texto de búsqueda (searchQuery) o la lista de clientes cambian.
   const filteredClientes = useMemo(() => {
     // Si la barra de búsqueda está vacía, devuelve todos los clientes de la base de datos directamente
+    if (!Array.isArray(clientes)) return [];
     if (!searchQuery) return clientes;
     
     const query = searchQuery.toLowerCase().trim(); // Convertimos la búsqueda a minúsculas para que no importen las mayúsculas
@@ -373,6 +374,8 @@ export function Clientes() {
         onSave={handleSaveCliente}         // Pasa la función que gestionará el guardado
         onDelete={handleDeleteCliente}     // Pasa la función que gestionará la eliminación
         allClientes={clientes}             // Pasa la lista de clientes completa por si requiere validar duplicados (ej. RIF repetidos)
+        catalogUbicaciones={catalogUbicaciones} // Pasa el catálogo de ubicaciones para que el modal pueda mostrar los dropdowns dinámicos
+        listaEstados={listaEstados}
       />
     </div>
   );

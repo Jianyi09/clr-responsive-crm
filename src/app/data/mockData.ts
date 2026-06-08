@@ -1,14 +1,14 @@
 export interface Cliente {
-  id_clientes: number;
-  razon_social: string;
-  rif_dni: string;
-  ciudad: string;
+  id: string; // O number, según cómo manejes tus IDs unificados en el front
+  razonSocial: string; // Cambiado para que coincida con cliente.razonSocial del front
+  rifDni: string;
+  ciudad?: string | null; // Opcional, ya que ahora permitimos nulos
   estado: string;
-  numero_telefonico: string;
-  correo_electronico: string;
+  numeroTelefonico: string;
+  correoElectronico: string;
   contacto: string;
   direccion: string;
-  equiposRegistrados: number;
+  equiposRegistrados?: number;
 }
 
 export interface TipoEquipo {
@@ -26,10 +26,10 @@ export interface Modelo {
   nombre: string;
   marcaId: string;
   tipoEquipoId: string;
-  anoVersion: string;
-  numeroSerie: string;
-  infoTecnica: string;
-  enlaceFichaTecnica: string;
+  anoVersion?: string;
+  numeroSerie?: string;
+  infoTecnica?: string;
+  enlaceFichaTecnica?: string;
 }
 
 export interface Equipo {
@@ -39,9 +39,10 @@ export interface Equipo {
   marcaId: string;
   modeloId: string;
   aliasInterno: string;
-  observacion: string;
   serial: string;
-  infoTecnica: string;
+  observacion: string;
+  informacionTecnica?: string;
+  tipoCombustible?: string;   
 }
 
 export const ESTADOS = ['La Romana', 'Santo Domingo', 'Santiago', 'La Vega', 'San Pedro'];
@@ -53,6 +54,33 @@ export const CIUDADES: Record<string, string[]> = {
   'La Vega': ['Centro', 'Este'],
   'San Pedro': ['Centro', 'Industrial'],
 };
+
+export const Clientes: Cliente[] = [
+  {
+    id: '1',
+    razonSocial: 'Constructora ABC S.A.',
+    rifDni: 'J-12345678-9',
+    ciudad: 'Santo Domingo',
+    estado: 'Nacional',
+    numeroTelefonico: '809-555-1234',
+    correoElectronico: 'info@constructoraabc.com',
+    contacto: 'Juan Pérez',
+    direccion: 'Calle Principal, Santo Domingo',
+    equiposRegistrados: 3,
+  },
+  {
+    id: '2',
+    razonSocial: 'Constructora DFG S.A.',
+    rifDni: 'J-12555555678-2',
+    ciudad: 'Santo Domingo',
+    estado: 'Nacional',
+    numeroTelefonico: '809-555-1234',
+    correoElectronico: 'info@constructoraabc.com',
+    contacto: 'Juan Pérez',
+    direccion: 'Calle Principal, Santo Domingo',
+    equiposRegistrados: 4,
+  },
+];
 
 export const tiposEquipo: TipoEquipo[] = [
   { id: '1', nombre: 'Excavadora' },
@@ -124,27 +152,5 @@ export const equipos: Equipo[] = [
     observacion: 'Asignada a proyecto Costa Este',
     serial: 'PC210-2019-ABC456',
     infoTecnica: 'Requiere cambio de filtros próximamente',
-  },
-  {
-    id: '3',
-    clienteId: '2',
-    tipoEquipoId: '2',
-    marcaId: '3',
-    modeloId: '3',
-    aliasInterno: 'CAM-101',
-    observacion: 'Ruta nacional',
-    serial: 'FH16-2021-DEF789',
-    infoTecnica: 'Neumáticos nuevos instalados',
-  },
-  {
-    id: '4',
-    clienteId: '4',
-    tipoEquipoId: '1',
-    marcaId: '1',
-    modeloId: '1',
-    aliasInterno: 'MIN-EXC-01',
-    observacion: 'Operación en mina principal',
-    serial: 'CAT320D2020-MIN001',
-    infoTecnica: 'Equipo reforzado para trabajo pesado',
   },
 ];

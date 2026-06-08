@@ -15,7 +15,6 @@ import {
 } from '../data/mockData';
 import { EquipoModal } from '../components/modals/EquipoModal';
 import { useAuth } from '../context/AuthContext';
-import { getClientes, getEquipos, getMarcas, getModelos, getTiposEquipo } from '../services/api';
 
 export function Equipos() {
   const { isAdmin } = useAuth();
@@ -60,7 +59,7 @@ export function Equipos() {
   }, []);
 
   const clientesConEquipos = useMemo(() => {
-    const clienteIds = new Set(equipos.map(e => e.clienteId));
+    const cliente = new Set(equipos.map(e => e.clienteId));
     return clientesList.filter(c => soloConEquipos ? clienteIds.has(c.id) : true);
   }, [soloConEquipos, equipos, clientesList]);
 

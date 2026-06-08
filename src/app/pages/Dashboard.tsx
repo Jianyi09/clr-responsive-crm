@@ -6,7 +6,8 @@ import { Badge } from '../components/ui/badge';
 import { Users, Truck, Box, TrendingUp, Building2, MapPin } from 'lucide-react';
 import { Cliente, Equipo, Modelo, TipoEquipo, ESTADOS } from '../data/mockData';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { getClientes, getEquipos, getModelos, getTiposEquipo } from '../services/api';
+import { getClientes } from '../services/api';
+import { Clientes } from './Clientes';
 
 export function Dashboard() {
   const [selectedEstado, setSelectedEstado] = useState<string>('todos');
@@ -23,10 +24,10 @@ export function Dashboard() {
     async function loadData() {
       try {
         const [clientesData, equiposData, modelosData, tiposData] = await Promise.all([
-          getClientes(),
-          getEquipos(),
-          getModelos(),
-          getTiposEquipo(),
+          cliente(),
+          equipos(),
+          modelos(),
+          tiposEquipo(),
         ]);
 
         setClientes(clientesData);

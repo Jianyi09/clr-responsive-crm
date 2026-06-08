@@ -68,51 +68,127 @@ export const getUbicationCatalog = async (req, res) => {
 };
 
 // Registrar nuevo cliente (POST)
-export const crearCliente = async (req, res) => {
-  const { razon_social, rif_dni, estado, ciudad, numero_telefonico, correo_electronico, contacto, direccion } = req.body;
-  
+export async function crearCliente(req, res) {
+  const { 
+    razon_social, rif_dni, estado, ciudad, 
+    numero_telefonico, correo_electronico, contacto, direccion 
+  } = req.body;
+
   try {
-    const query = `
-      INSERT INTO "Clientes" 
-      (razon_social, rif_dni, estado, ciudad, numero_telefonico, correo_electronico, contacto, direccion)
+    // 1. Traducimos el texto del Estado (Este sigue siendo obligatorio)
+    const estadoQuery = await req.db.query(
+      `SELECT id_estado FROM "Estados" WHERE estado = $1`, 
+      [estado]
+    );
+    
+    if (estadoQuery.rows.length === 0) {
+      return res.status(400).json({ error: 'El estado especificado no es válido.' });
+    }
+    const id_estado = estadoQuery.rows[0].id_estado;
+
+    // 2. Lógica Reactiva para la Ciudad Opcional
+    let id_ciudad = null; // Por defecto es null si el frontend no envía nada
+    
+    if (ciudad && ciudad.trim() !== "") {
+      const ciudadQuery = await req.db.query(
+        `SELECT id_ciudad FROM "Ciudades" WHERE ciudad = $1 AND id_estado = $2`, 
+        [ciudad, id_estado]
+      );
+      
+      if (ciudadQuery.rows.length === 0) {
+        return res.status(400).json({ error: 'La ciudad especificada no pertenece al estado seleccionado.' });
+      }
+      id_ciudad = ciudadQuery.rows[0].id_ciudad;
+    }
+
+    // 3. Insertamos en la Base de Datos (id_ciudad pasará como entero o como NULL)
+    const insertQuery = `
+      INSERT INTO "Clientes" (
+        razon_social, rif_dni, id_estado, id_ciudad, 
+        numero_telefonico, correo_electronico, contacto, direccion
+      )
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
     `;
-    const values = [razon_social, rif_dni, estado, ciudad, numero_telefonico, correo_electronico, contacto, direccion];
-    const result = await pool.query(query, values);
-    
+
+    const result = await req.db.query(insertQuery, [
+      razon_social, rif_dni, id_estado, id_ciudad, 
+      numero_telefonico, correo_electronico, contacto, direccion
+    ]);
+
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Error al crear cliente:', error);
     res.status(500).json({ error: 'Error interno al registrar el cliente' });
   }
-};
+}
 
-// Editar un cliente existente (PUT)
-export const actualizarCliente = async (req, res) => {
-  const { id } = req.params;
-  const { razon_social, rif_dni, estado, ciudad, numero_telefonico, correo_electronico, contacto, direccion } = req.body;
+// Actualizar cliente existente (PUT)
+export async function actualizarCliente(req, res) {
+  const id = req.params.id;
+  const { 
+    razon_social, rif_dni, estado, ciudad, 
+    numero_telefonico, correo_electronico, contacto, direccion 
+  } = req.body;
 
   try {
-    const query = `
-      UPDATE "Clientes"
-      SET razon_social = $1, rif_dni = $2, estado = $3, ciudad = $4, 
-          numero_telefonico = $5, correo_electronico = $6, contacto = $7, direccion = $8
+    // 1. Validamos el Estado
+    const estadoQuery = await req.db.query(
+      `SELECT id_estado FROM "Estados" WHERE estado = $1`, 
+      [estado]
+    );
+    
+    if (estadoQuery.rows.length === 0) {
+      return res.status(400).json({ error: 'El estado especificado no es válido.' });
+    }
+    const id_estado = estadoQuery.rows[0].id_estado;
+
+    // 2. Evaluamos la Ciudad Opcional
+    let id_ciudad = null;
+    if (ciudad && ciudad.trim() !== "") {
+      const ciudadQuery = await req.db.query(
+        `SELECT id_ciudad FROM "Ciudades" WHERE ciudad = $1 AND id_estado = $2`, 
+        [ciudad, id_estado]
+      );
+      
+      if (ciudadQuery.rows.length === 0) {
+        return res.status(400).json({ error: 'La ciudad especificada no es válida.' });
+      }
+      id_ciudad = ciudadQuery.rows[0].id_ciudad;
+    }
+
+    // 3. Ejecutamos la actualización física
+    const updateQuery = `
+      UPDATE "Clientes" 
+      SET 
+        razon_social = $1, 
+        rif_dni = $2, 
+        id_estado = $3, 
+        id_ciudad = $4, 
+        numero_telefonico = $5, 
+        correo_electronico = $6, 
+        contacto = $7, 
+        direccion = $8
       WHERE id_clientes = $9
       RETURNING *
     `;
-    const values = [razon_social, rif_dni, estado, ciudad, numero_telefonico, correo_electronico, contacto, direccion, id];
-    const result = await pool.query(query, values);
 
-    if (result.rowCount === 0) {
+    const result = await req.db.query(updateQuery, [
+      razon_social, rif_dni, id_estado, id_ciudad, 
+      numero_telefonico, correo_electronico, contacto, direccion, 
+      id
+    ]);
+
+    if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Cliente no encontrado' });
     }
+
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error al actualizar cliente:', error);
     res.status(500).json({ error: 'Error interno al actualizar el cliente' });
   }
-};
+}
 
 // 4. Eliminar un cliente (DELETE)
 export const eliminarCliente = async (req, res) => {

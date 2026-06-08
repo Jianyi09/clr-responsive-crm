@@ -12,7 +12,7 @@ import { Building2, Edit, Trash2, X, Save, MapPin, Phone, Mail, User, Hash } fro
 // Contexto de autenticación para control de accesos basados en roles
 import { useAuth } from '../../context/AuthContext';
 // Estructuras de datos locales e interfaces de tipado estático
-import { ESTADOS, CIUDADES, type Cliente } from '../../data/mockData';
+import { type Cliente } from '../../data/mockData';
 // Notificaciones flotantes en tiempo real
 import { toast } from 'sonner';
 
@@ -28,6 +28,8 @@ interface ClienteModalProps {
   onSave: (clienteData: Omit<Cliente, 'id_clientes' | 'equiposRegistrados'>) => void;
   onDelete: (id: number) => void; // Función encargada de despachar la remoción física/lógica
   allClientes: Cliente[];      // Arreglo completo en memoria utilizado para validaciones cruzadas (duplicados)
+  catalogUbicaciones: Record<string, string[]>; // Catálogo geográfico dinámico inyectado desde el backend
+  listaEstados: string[];
 }
 
 export function ClienteModal({
@@ -38,6 +40,8 @@ export function ClienteModal({
   onSave,
   onDelete,
   allClientes,
+  catalogUbicaciones,
+  listaEstados
 }: ClienteModalProps) {
   // Extrae el rol de usuario para habilitar/deshabilitar acciones críticas de escritura
   const { isAdmin } = useAuth();
@@ -130,23 +134,9 @@ export function ClienteModal({
     if (!formData.estado) {
       newErrors.estado = 'El estado es requerido';
     }
-    if (!formData.ciudad) {
-      newErrors.ciudad = 'La ciudad es requerida';
-    }
-    if (!formData.telefono.trim()) {
-      newErrors.telefono = 'El teléfono es requerido';
-    }
     // Validación sintáctica del correo mediante expresiones regulares (RegEx)
-    if (!formData.correo.trim()) {
-      newErrors.correo = 'El correo es requerido';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.correo)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.correo)) {
       newErrors.correo = 'El correo no es válido';
-    }
-    if (!formData.contacto.trim()) {
-      newErrors.contacto = 'El contacto es requerido';
-    }
-    if (!formData.direccion.trim()) {
-      newErrors.direccion = 'La dirección es requerida';
     }
 
     setErrors(newErrors);
@@ -330,7 +320,7 @@ export function ClienteModal({
                   </div>
 
                   <div>
-                    <Label htmlFor="telefono">Teléfono *</Label>
+                    <Label htmlFor="telefono">Teléfono </Label>
                     <Input
                       id="telefono"
                       value={formData.telefono}
@@ -350,7 +340,7 @@ export function ClienteModal({
                         <SelectValue placeholder="Seleccionar estado" />
                       </SelectTrigger>
                       <SelectContent>
-                        {ESTADOS.map(estado => (
+                        {listaEstados.map(estado => (
                           <SelectItem key={estado} value={estado}>{estado}</SelectItem>
                         ))}
                       </SelectContent>
@@ -361,7 +351,7 @@ export function ClienteModal({
                   </div>
 
                   <div>
-                    <Label htmlFor="ciudad">Ciudad *</Label>
+                    <Label htmlFor="ciudad">Ciudad </Label>
                     <Select
                       value={formData.ciudad}
                       onValueChange={(ciudad) => setFormData({ ...formData, ciudad })}
@@ -382,7 +372,7 @@ export function ClienteModal({
                   </div>
 
                   <div>
-                    <Label htmlFor="correo">Correo Electrónico *</Label>
+                    <Label htmlFor="correo">Correo Electrónico </Label>
                     <Input
                       id="correo"
                       type="email"
@@ -397,7 +387,7 @@ export function ClienteModal({
                   </div>
 
                   <div>
-                    <Label htmlFor="contacto">Nombre de Contacto *</Label>
+                    <Label htmlFor="contacto">Nombre de Contacto </Label>
                     <Input
                       id="contacto"
                       value={formData.contacto}
@@ -411,7 +401,7 @@ export function ClienteModal({
                   </div>
 
                   <div className="md:col-span-2">
-                    <Label htmlFor="direccion">Dirección *</Label>
+                    <Label htmlFor="direccion">Dirección </Label>
                     <Textarea
                       id="direccion"
                       value={formData.direccion}

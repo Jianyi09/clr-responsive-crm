@@ -9,10 +9,10 @@ import pool from '../db/index.js';
 export async function getUbicationCatalogHelper() {
   // 1. Buscamos la relación exacta uniendo las tablas por su ID único
   const query = `
-    SELECT e.estado AS estado, c.nombre_ciudad AS ciudad 
+    SELECT e.estado AS estado, c.ciudad AS ciudad 
     FROM "Estados" e
     INNER JOIN "Ciudades" c ON e.id_estado = c.id_estado
-    ORDER BY e.estado, c.nombre_ciudad
+    ORDER BY e.estado, c.ciudad
   `;
   
   const res = await pool.query(query);

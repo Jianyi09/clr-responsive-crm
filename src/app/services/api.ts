@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import { Cliente, Equipo, Modelo, Marca, TipoEquipo } from '../data/mockData';
+import { type Cliente, Equipo, Modelo, Marca, TipoEquipo } from '../data/mockData';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
 
