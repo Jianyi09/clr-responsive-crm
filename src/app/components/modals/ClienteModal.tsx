@@ -58,8 +58,8 @@ export function ClienteModal({
     rifDni: '',
     estado: '',
     ciudad: '',
-    telefono: '',
-    correo: '',
+    numeroTelefonico: '',
+    correoElectronico: '',
     contacto: '',
     direccion: '',
   });
@@ -79,8 +79,8 @@ export function ClienteModal({
         rifDni: '',
         estado: '',
         ciudad: '',
-        telefono: '',
-        correo: '',
+        numeroTelefonico: '',
+        correoElectronico: '',
         contacto: '',
         direccion: '',
       });
@@ -89,14 +89,14 @@ export function ClienteModal({
       setMode('view');
       // Mapea las propiedades snake_case de PostgreSQL a la estructura camelCase del formulario local
       setFormData({
-        razonSocial: cliente.razon_social,
-        rifDni: cliente.rif_dni,
+        razonSocial: cliente.razonSocial,
+        rifDni: cliente.rifDni,
         estado: cliente.estado,
-        ciudad: cliente.ciudad,
-        telefono: cliente.numero_telefonico,
-        correo: cliente.correo_electronico,
-        contacto: cliente.contacto,
-        direccion: cliente.direccion,
+        ciudad: cliente.ciudad ?? '',
+        numeroTelefonico: cliente.numeroTelefonico ?? '',
+        correoElectronico: cliente.correoElectronico ?? '',
+        contacto: cliente.contacto ?? '',
+        direccion: cliente.direccion ?? '',
       });
       setErrors({});
     }
@@ -125,7 +125,7 @@ export function ClienteModal({
     } else {
       // Región de Validación Cruzada: Previene duplicación de identificadores fiscales únicos (RIF)
       const isDuplicate = allClientes.some(
-        c => c.rif_dni === formData.rifDni && c.id_clientes !== cliente?.id_clientes
+        c => c.rifDni === formData.rifDni && c.id !== cliente?.id
       );
       if (isDuplicate) {
         newErrors.rifDni = 'Ya existe un cliente con este RIF/DNI';
@@ -133,10 +133,7 @@ export function ClienteModal({
     }
     if (!formData.estado) {
       newErrors.estado = 'El estado es requerido';
-    }
-    // Validación sintáctica del correo mediante expresiones regulares (RegEx)
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.correo)) {
-      newErrors.correo = 'El correo no es válido';
+  
     }
 
     setErrors(newErrors);
@@ -154,14 +151,15 @@ export function ClienteModal({
 
     // Convierte la estructura camelCase del formulario de vuelta al molde exacto que espera PostgreSQL
     const clienteData: Omit<Cliente, 'id_clientes' | 'equiposRegistrados'> = {
-      razon_social: formData.razonSocial,
-      rif_dni: formData.rifDni,
+      id: cliente!.id, // El ID se mantiene inmutable durante la edición, y se omite en la creación para que lo genere PostgreSQL
+      razonSocial: formData.razonSocial,
+      rifDni: formData.rifDni,
       estado: formData.estado,
-      ciudad: formData.ciudad,
-      numero_telefonico: formData.telefono,
-      correo_electronico: formData.correo,
-      contacto: formData.contacto,
-      direccion: formData.direccion,
+      ciudad: formData.ciudad ?? '',
+      numeroTelefonico: formData.numeroTelefonico ?? '',
+      correoElectronico: formData.correoElectronico ?? '',
+      contacto: formData.contacto ?? '',
+      direccion: formData.direccion ?? '',
     };
 
     onSave(clienteData);
@@ -174,7 +172,7 @@ export function ClienteModal({
    */
   const handleDelete = () => {
     if (cliente) {
-      onDelete(cliente.id_clientes);
+      onDelete(Number(cliente.id));
       toast.success('Cliente eliminado exitosamente');
       setShowDeleteDialog(false);
     }
@@ -191,14 +189,14 @@ export function ClienteModal({
       setMode('view');
       if (cliente) {
         setFormData({
-          razonSocial: cliente.razon_social,
-          rifDni: cliente.rif_dni,
+          razonSocial: cliente.razonSocial,
+          rifDni: cliente.rifDni,
           estado: cliente.estado,
-          ciudad: cliente.ciudad,
-          telefono: cliente.numero_telefonico,
-          correo: cliente.correo_electronico,
-          contacto: cliente.contacto,
-          direccion: cliente.direccion,
+          ciudad: cliente.ciudad ?? '',
+          numeroTelefonico: cliente.numeroTelefonico ?? '',
+          correoElectronico: cliente.correoElectronico ?? '',
+          contacto: cliente.contacto ?? '',
+          direccion: cliente.direccion ?? '',
         });
       }
       setErrors({});
@@ -252,14 +250,14 @@ export function ClienteModal({
                     <p className="text-sm text-gray-500 mb-1">Teléfono</p>
                     <p className="font-medium flex items-center">
                       <Phone className="w-4 h-4 mr-1 text-gray-400" />
-                      {formData.telefono}
+                      {formData.numeroTelefonico}
                     </p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Correo</p>
                     <p className="font-medium flex items-center">
                       <Mail className="w-4 h-4 mr-1 text-gray-400" />
-                      {formData.correo}
+                      {formData.correoElectronico}
                     </p>
                   </div>
                   <div>
@@ -320,16 +318,16 @@ export function ClienteModal({
                   </div>
 
                   <div>
-                    <Label htmlFor="telefono">Teléfono </Label>
+                    <Label htmlFor="numeroTelefonico">Teléfono </Label>
                     <Input
-                      id="telefono"
-                      value={formData.telefono}
-                      onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+                      id="numeroTelefonico"
+                      value={formData.numeroTelefonico}
+                      onChange={(e) => setFormData({ ...formData, numeroTelefonico: e.target.value })}
                       placeholder="Ej: 809-555-0101"
-                      className={errors.telefono ? 'border-red-500' : ''}
+                      className={errors.numeroTelefonico ? 'border-red-500' : ''}
                     />
-                    {errors.telefono && (
-                      <p className="text-xs text-red-500 mt-1">{errors.telefono}</p>
+                    {errors.numeroTelefonico && (
+                      <p className="text-xs text-red-500 mt-1">{errors.numeroTelefonico}</p>
                     )}
                   </div>
 
@@ -372,17 +370,17 @@ export function ClienteModal({
                   </div>
 
                   <div>
-                    <Label htmlFor="correo">Correo Electrónico </Label>
+                    <Label htmlFor="correoElectronico">Correo Electrónico </Label>
                     <Input
-                      id="correo"
+                      id="correoElectronico"
                       type="email"
-                      value={formData.correo}
-                      onChange={(e) => setFormData({ ...formData, correo: e.target.value })}
+                      value={formData.correoElectronico}
+                      onChange={(e) => setFormData({ ...formData, correoElectronico: e.target.value })}
                       placeholder="Ej: contacto@empresa.com"
-                      className={errors.correo ? 'border-red-500' : ''}
+                      className={errors.correoElectronico ? 'border-red-500' : ''}
                     />
-                    {errors.correo && (
-                      <p className="text-xs text-red-500 mt-1">{errors.correo}</p>
+                    {errors.correoElectronico && (
+                      <p className="text-xs text-red-500 mt-1">{errors.correoElectronico}</p>
                     )}
                   </div>
 

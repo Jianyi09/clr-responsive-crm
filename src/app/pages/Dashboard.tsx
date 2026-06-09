@@ -6,8 +6,8 @@ import { Badge } from '../components/ui/badge';
 import { Users, Truck, Box, TrendingUp, Building2, MapPin } from 'lucide-react';
 import { Cliente, Equipo, Modelo, TipoEquipo, ESTADOS } from '../data/mockData';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { getClientes } from '../services/api';
-import { Clientes } from './Clientes';
+import { getClientes, getEquipos, getMarcas, getModelos, getTiposEquipo } from '../services/api';
+import { Clientes } from './Clientes'; 
 
 export function Dashboard() {
   const [selectedEstado, setSelectedEstado] = useState<string>('todos');
@@ -24,10 +24,10 @@ export function Dashboard() {
     async function loadData() {
       try {
         const [clientesData, equiposData, modelosData, tiposData] = await Promise.all([
-          cliente(),
-          equipos(),
-          modelos(),
-          tiposEquipo(),
+          getClientes(),
+          getEquipos(),
+          getModelos(),
+          getTiposEquipo(),
         ]);
 
         setClientes(clientesData);
@@ -208,7 +208,7 @@ export function Dashboard() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredClientes.slice(0, 6).map((cliente) => (
-              <Link key={cliente.id_clientes} to="/clientes">
+              <Link key={cliente.id} to="/clientes">
                 <Card className="hover:shadow-md transition-shadow cursor-pointer">
                   <CardContent className="pt-6">
                     <div className="flex items-start justify-between mb-3">
@@ -220,7 +220,7 @@ export function Dashboard() {
                       </Badge>
                     </div>
                     <h4 className="font-semibold text-gray-900 mb-2 line-clamp-2">
-                      {cliente.razon_social}
+                      {cliente.razonSocial}
                     </h4>
                     <div className="space-y-1 text-sm text-gray-600">
                       <div className="flex items-center">

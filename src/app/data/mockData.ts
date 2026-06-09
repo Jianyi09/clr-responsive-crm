@@ -2,13 +2,13 @@ export interface Cliente {
   id: string; // O number, según cómo manejes tus IDs unificados en el front
   razonSocial: string; // Cambiado para que coincida con cliente.razonSocial del front
   rifDni: string;
-  ciudad?: string | null; // Opcional, ya que ahora permitimos nulos
+  ciudad: string | null; // Opcional, ya que ahora permitimos nulos
   estado: string;
   numeroTelefonico: string;
   correoElectronico: string;
   contacto: string;
   direccion: string;
-  equiposRegistrados?: number;
+  equiposRegistrados: number;
 }
 
 export interface TipoEquipo {
@@ -41,7 +41,7 @@ export interface Equipo {
   aliasInterno: string;
   serial: string;
   observacion: string;
-  informacionTecnica?: string;
+  infoTecnica?: string;
   tipoCombustible?: string;   
 }
 

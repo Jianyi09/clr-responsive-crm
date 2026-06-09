@@ -123,14 +123,14 @@ export function Clientes() {
     // Filtramos el array buscando coincidencias en múltiples campos del objeto cliente
     return clientes.filter(
       (cliente) => {
-        const razonSocial = (cliente.razon_social || '').toLowerCase();
-        const rifDni = (cliente.rif_dni || '').toLowerCase();
+        const razonSocial = (cliente.razonSocial || '').toLowerCase();
+        const rifDni = (cliente.rifDni || '').toLowerCase();
         const contacto = (cliente.contacto || '').toLowerCase();
         const estadoName = (cliente.estado || '').toLowerCase();
         const ciudadName = (cliente.ciudad || '').toLowerCase();
         const direccionCompleta = (cliente.direccion || '').toLowerCase();
-        const telefono = (cliente.numero_telefonico || '').toLowerCase();
-        const correo = (cliente.correo_electronico || '').toLowerCase();
+        const telefono = (cliente.numeroTelefonico || '').toLowerCase();
+        const correo = (cliente.correoElectronico || '').toLowerCase();
 
         return (
           razonSocial.includes(query) ||
@@ -168,9 +168,9 @@ export function Clientes() {
       // 1. Definimos la URL y el método HTTP correcto dinámicamente según la acción
       const url = isCreating 
         ? 'http://localhost:4000/api/clientes' 
-        : `http://localhost:4000/api/clientes/${selectedCliente?.id_clientes}`;
+        : `http://localhost:4000/api/clientes/${selectedCliente?.id}`;
         
-      const method = isCreating ? 'POST' : 'PUT';
+      const method = isCreating ? 'POST' : 'PUT'; 
 
       // 2. Ejecutamos la petición al servidor mandando el JSON con los datos del formulario
       const response = await fetch(url, {
@@ -212,7 +212,7 @@ export function Clientes() {
 
       if (response.ok) {
         // 2. Si el servidor borró la fila, lo quitamos de la UI inmediatamente
-        setClientes(prev => prev.filter(c => c.id_clientes !== id));
+        setClientes(prev => prev.filter(c => c.id !== selectedCliente?.id)); // Actualiza el estado local eliminando el cliente borrado
         setIsModalOpen(false); // Cerramos la ventana flotante
       } else {
         const errorData = await response.json();
@@ -309,7 +309,7 @@ export function Clientes() {
           {/* Bucle .map para recorrer cada uno de los clientes filtrados y transformarlos en una tarjeta visual */}
           {filteredClientes.map((cliente) => (
             <Card
-              key={cliente.id_clientes} // Elemento requerido por React para identificar de forma única cada tarjeta en el DOM
+              key={cliente.id} // Elemento requerido por React para identificar de forma única cada tarjeta en el DOM
               className="hover:shadow-lg transition-all duration-200 hover:-translate-y-1 cursor-pointer"
               onClick={() => handleClienteClick(cliente)} // Al dar clic en cualquier parte de la tarjeta se abre su información
             >
@@ -330,7 +330,7 @@ export function Clientes() {
 
                 {/* Razón Social del Cliente */}
                 <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2 min-h-[3rem]">
-                  {cliente.razon_social}
+                  {cliente.razonSocial}
                 </h3>
 
                 {/* Datos de Contacto Directos (Teléfono y Correo) */}
@@ -341,18 +341,18 @@ export function Clientes() {
                   </div>
                   <div className="flex items-center">
                     <Phone className="w-4 h-4 mr-2 flex-shrink-0" />
-                    <span className="line-clamp-1">{cliente.numero_telefonico}</span>
+                    <span className="line-clamp-1">{cliente.numeroTelefonico}</span>
                   </div>
                   <div className="flex items-center">
                     <Mail className="w-4 h-4 mr-2 flex-shrink-0" />
-                    <span className="line-clamp-1">{cliente.correo_electronico}</span>
+                    <span className="line-clamp-1">{cliente.correoElectronico}</span>
                   </div>
                 </div>
 
                 {/* Pie de la Tarjeta: Identificación Fiscal (RIF) y persona de contacto */}
                 <div className="mt-4 pt-4 border-t">
                   <p className="text-xs text-gray-500">
-                    <span className="font-medium">RIF:</span> {cliente.rif_dni}
+                    <span className="font-medium">RIF:</span> {cliente.rifDni}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
                     <span className="font-medium">Contacto:</span> {cliente.contacto}

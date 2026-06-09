@@ -26,7 +26,22 @@ export async function getClientes(): Promise<Cliente[]> {
 
 // Llama al endpoint que ejecuta la consulta definida en clientesController.js
 export async function getClientesApi(): Promise<Cliente[]> {
-  return fetchJson<Cliente[]>('/api/clientes');
+  // 1. Solicitamos la data al servidor tratándola como un array dinámico (any[])
+  const dataRaw = await fetchJson<any[]>('/api/clientes');
+
+  // 2. Mapeamos cada registro traduciendo los nombres físicos de la BD al molde de React
+  return dataRaw.map((item) => ({
+    id: item.id_clientes.toString(), // Convertimos el ID a string para encajar con mockData
+    razonSocial: item.razon_social,  // Mapeo crucial para eliminar los errores de la consola
+    rifDni: item.rif_dni,
+    ciudad: item.ciudad || '',       // Protegemos con un fallback string vacío si viene null de Postgres
+    estado: item.estado || '',
+    numeroTelefonico: item.numero_telefonico || '',
+    correoElectronico: item.correo_electronico || '',
+    contacto: item.contacto || '',
+    direccion: item.direccion || '',
+    equiposRegistrados: Number(item.equiposRegistrados ?? 0)
+  }));
 }
 
 export async function getEquipos(): Promise<Equipo[]> {
