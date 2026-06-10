@@ -26,9 +26,9 @@ export interface Modelo {
   nombre: string;
   marcaId: string;
   tipoEquipoId: string;
-  anoVersion?: string;
-  numeroSerie?: string;
-  infoTecnica?: string;
+  anoVersion: string;
+  numeroSerie: string;
+  infoTecnica: string;
   enlaceFichaTecnica?: string;
 }
 
@@ -41,7 +41,7 @@ export interface Equipo {
   aliasInterno: string;
   serial: string;
   observacion: string;
-  infoTecnica?: string;
+  infoTecnica: string;
   tipoCombustible?: string;   
 }
 

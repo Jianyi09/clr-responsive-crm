@@ -6,7 +6,7 @@ import { Badge } from '../components/ui/badge';
 import { Users, Truck, Box, TrendingUp, Building2, MapPin } from 'lucide-react';
 import { Cliente, Equipo, Modelo, TipoEquipo, ESTADOS } from '../data/mockData';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { getClientes, getEquipos, getMarcas, getModelos, getTiposEquipo } from '../services/api';
+import { getClientesApi } from '../services/clientesApi';
 import { Clientes } from './Clientes'; 
 
 export function Dashboard() {

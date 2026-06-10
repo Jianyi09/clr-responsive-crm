@@ -22,7 +22,7 @@ import { type Cliente } from '../data/mockData';
 
 // Importamos la función encargada de comunicarse con el servidor/backend para traer los datos
 // Usamos el endpoint de clientesController para obtener estado, ciudad y equipos registrados.
-import { getClientesApi } from '../services/api';
+import { getClientesApi, saveClienteApi, eliminarClienteApi } from '../services/clientesApi';
 
 // Importamos el componente de la ventana emergente (modal) para crear, editar o eliminar clientes
 import { ClienteModal } from '../components/modals/ClienteModal';
@@ -71,13 +71,13 @@ export function Clientes() {
   // ==========================================
   // 4. EFECTOS (EFECTO DE CARGA INICIAL - BACKEND)
   // ==========================================
-  useEffect(() => {
     // Definimos una función asíncrona interna para poder usar 'await' al llamar a la API
+    useEffect(() => {
     async function loadClientes() {
       try {
-        const clientesData = await getClientesApi(); // Llama a la función que hace la petición al backend para obtener los clientes
+        const clientesData = await getClientesApi(); 
         if (Array.isArray(clientesData)) { 
-          setClientes(clientesData); //
+          setClientes(clientesData); 
         } else {
           setClientes([]);
           setError('El servidor devolvió un formato de datos inesperado.');
@@ -89,7 +89,6 @@ export function Clientes() {
         setLoading(false);
       }
     }
-
     // Ejecutamos la función inmediatamente al renderizar el componente por primera vez
     loadClientes();
   }, []); // El array vacío [] asegura que esto solo ocurra UNA VEZ al cargar la página
@@ -97,10 +96,11 @@ export function Clientes() {
   useEffect(() => {
     const cargarUbicaciones = async () => {
       try {
+        // Mantenemos la llamada limpia al catálogo de ubicaciones
         const response = await fetch('http://localhost:4000/api/clientes/ubicaciones');
         const data = await response.json();
         setCatalogUbicaciones(data);
-        setListaEstados(Object.keys(data)); // Almacena los estados disponibles basados en las llaves del JSON
+        setListaEstados(Object.keys(data)); 
       } catch (error) {
         console.error('Error al conectar catálogo geográfico:', error);
       }
@@ -165,63 +165,37 @@ export function Clientes() {
   // Se ejecuta cuando el usuario presiona "Guardar" DENTRO del modal (conexion con BACKEND)
   const handleSaveCliente = async (clienteData: Omit<Cliente, 'id_clientes' | 'equiposRegistrados'>) => {
     try {
-      // 1. Definimos la URL y el método HTTP correcto dinámicamente según la acción
-      const url = isCreating 
-        ? 'http://localhost:4000/api/clientes' 
-        : `http://localhost:4000/api/clientes/${selectedCliente?.id}`;
-        
-      const method = isCreating ? 'POST' : 'PUT'; 
+      // Invocamos el servicio unificado pasando la bandera booleana isCreating
+      // Este servicio ya se encarga de formatear a snake_case y elegir POST o PUT
+      await saveClienteApi(clienteData, isCreating);
 
-      // 2. Ejecutamos la petición al servidor mandando el JSON con los datos del formulario
-      const response = await fetch(url, {
-        method: method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(clienteData),
-      });
-
-      if (response.ok) {
-        // 3. Si la base de datos procesó el cambio con éxito, refrescamos la lista principal
-        // llamando a la misma función que usas en el useEffect de carga inicial
-        const clientesData = await getClientesApi();
-        setClientes(clientesData);
-        
-        setIsModalOpen(false); // Cerramos el modal solo si se guardó con éxito
-      } else {
-        const errorData = await response.json();
-        console.error('Error del servidor:', errorData.error);
-        alert(`Error al guardar: ${errorData.error || 'Inténtalo de nuevo.'}`);
-      }
+      // Refrescamos la lista principal de clientes desde la base de datos
+      const clientesData = await getClientesApi();
+      setClientes(clientesData);
+      
+      setIsModalOpen(false); 
     } catch (error) {
-      console.error('Error de red al intentar guardar:', error);
-      alert('No se pudo conectar con el servidor backend.');
+      console.error('Error al intentar guardar:', error);
+      alert(error instanceof Error ? error.message : 'No se pudo guardar el registro.');
     }
   };
 
   // Se ejecuta cuando el usuario presiona "Eliminar" DENTRO del modal de un cliente
   const handleDeleteCliente = async (id: number) => {
-    // Una pequeña confirmación de seguridad antes de borrar de la base de datos real
     if (!window.confirm('¿Estás segura de que deseas eliminar este cliente de forma permanente?')) {
       return;
     }
 
     try {
-      // 1. Enviamos la petición DELETE al puerto 4000 con el ID en los parámetros
-      const response = await fetch(`http://localhost:4000/api/clientes/${id}`, {
-        method: 'DELETE',
-      });
+      // Convertimos el ID numérico a String tal como lo requiere el tipado del endpoint en la API
+      await eliminarClienteApi(id.toString());
 
-      if (response.ok) {
-        // 2. Si el servidor borró la fila, lo quitamos de la UI inmediatamente
-        setClientes(prev => prev.filter(c => c.id !== selectedCliente?.id)); // Actualiza el estado local eliminando el cliente borrado
-        setIsModalOpen(false); // Cerramos la ventana flotante
-      } else {
-        const errorData = await response.json();
-        console.error('Error al eliminar:', errorData.error);
-        alert(`No se pudo eliminar: ${errorData.error}`);
-      }
+      // Sincronizamos la UI local removiendo la fila del estado
+      setClientes(prev => prev.filter(c => c.id !== id.toString())); 
+      setIsModalOpen(false); 
     } catch (error) {
-      console.error('Error de conexión al intentar eliminar:', error);
-      alert('Error de red al intentar eliminar el registro.');
+      console.error('Error al intentar eliminar:', error);
+      alert(error instanceof Error ? error.message : 'Error de red al intentar eliminar el registro.');
     }
   };
 

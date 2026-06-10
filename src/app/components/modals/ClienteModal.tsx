@@ -149,9 +149,10 @@ export function ClienteModal({
       return;
     }
 
-    // Convierte la estructura camelCase del formulario de vuelta al molde exacto que espera PostgreSQL
-    const clienteData: Omit<Cliente, 'id_clientes' | 'equiposRegistrados'> = {
-      id: cliente!.id, // El ID se mantiene inmutable durante la edición, y se omite en la creación para que lo genere PostgreSQL
+    // Estructuramos el objeto limpio agregando el ID si estamos editando.
+    // Esto es crucial para que `saveClienteApi` arme la URL con el ID correcto.
+    const clienteData: any = {
+      id: isCreating ? undefined : cliente?.id, 
       razonSocial: formData.razonSocial,
       rifDni: formData.rifDni,
       estado: formData.estado,
@@ -162,7 +163,9 @@ export function ClienteModal({
       direccion: formData.direccion ?? '',
     };
 
+    // Despachamos al ancestro (Clientes.tsx)
     onSave(clienteData);
+    
     toast.success(isCreating ? 'Cliente creado exitosamente' : 'Cliente actualizado exitosamente');
     onClose();
   };

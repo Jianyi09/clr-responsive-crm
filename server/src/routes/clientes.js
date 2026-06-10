@@ -3,7 +3,7 @@ import { getClientesApi, crearCliente, actualizarCliente, eliminarCliente, getUb
 
 const router = express.Router();
 
-router.get('/', getClientesApi);
+router.get('/', getClientesApi);    
 router.get('/ubicaciones', getUbicationCatalog); // Endpoint geográfico
 router.post('/', crearCliente);
 router.put('/:id', actualizarCliente);

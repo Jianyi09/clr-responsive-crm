@@ -15,6 +15,7 @@ import {
 } from '../data/mockData';
 import { EquipoModal } from '../components/modals/EquipoModal';
 import { useAuth } from '../context/AuthContext';
+import { getEquiposInitData } from '../services/equiposApi';
 
 export function Equipos() {
   const { isAdmin } = useAuth();
@@ -34,22 +35,17 @@ export function Equipos() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [equiposData, clientesData, marcasData, modelosData, tiposData] = await Promise.all([
-          getEquipos(),
-          getClientes(),
-          getMarcas(),
-          getModelos(),
-          getTiposEquipo(),
-        ]);
+        setLoading(true);
+        const dashboardData = await getEquiposInitData();
 
-        setEquipos(equiposData);
-        setClientesList(clientesData);
-        setMarcasList(marcasData);
-        setModelosList(modelosData);
-        setTiposEquipo(tiposData);
+        setEquipos(dashboardData.equipos);
+        setClientesList(dashboardData.clientes);
+        setMarcasList(dashboardData.marcas);
+        setModelosList(dashboardData.modelos);
+        setTiposEquipo(dashboardData.tiposEquipo);
       } catch (err) {
-        console.error(err);
-        setError('No se pudieron cargar los datos de equipos.');
+        console.error(err)
+        setError('No se pudieron cargar los datos de los equipos reales.');
       } finally {
         setLoading(false);
       }
@@ -60,7 +56,7 @@ export function Equipos() {
 
   const clientesConEquipos = useMemo(() => {
     const cliente = new Set(equipos.map(e => e.clienteId));
-    return clientesList.filter(c => soloConEquipos ? clienteIds.has(c.id) : true);
+    return clientesList.filter(c => soloConEquipos ? cliente.has(c.id) : true);
   }, [soloConEquipos, equipos, clientesList]);
 
   const filteredData = useMemo(() => {

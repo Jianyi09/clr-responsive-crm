@@ -11,7 +11,6 @@ import {
 } from '../data/mockData';
 import { ModeloModal } from '../components/modals/ModeloModal';
 import { useAuth } from '../context/AuthContext';
-import { getModelos, getMarcas, getTiposEquipo } from '../services/api';
 
 export function Modelos() {
   const { isAdmin } = useAuth();
