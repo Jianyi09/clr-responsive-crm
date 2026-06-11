@@ -3,42 +3,65 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
-import { Box, Search, Plus, Package } from 'lucide-react';
+import { Box, Search, Plus, Package, Wrench, Info } from 'lucide-react';
 import {
   type Marca,
   type Modelo,
   type TipoEquipo,
-} from '../data/mockData';
+  // Nota: Asegúrate de definir o importar estos tipos según correspondan a tus entidades
+  type Repuesto,
+  type RepuestoModelo,
+} from '../data/mockData'; 
 import { ModeloModal } from '../components/modals/ModeloModal';
+import { RepuestosModal } from '../components/modals/RepuestosModal'; // Importación del nuevo modal
 import { useAuth } from '../context/AuthContext';
+// Aquí importarás tus funciones de endpoints reales del API de modelos y repuestos cuando los crees:
+// import { getModelos, getMarcas, getTiposEquipo, getRepuestos, getRepuestosModelos } from '../api/endpoints';
 
 export function Modelos() {
   const { isAdmin } = useAuth();
   const [modelos, setModelos] = useState<Modelo[]>([]);
   const [marcasList, setMarcasList] = useState<Marca[]>([]);
   const [tiposEquipo, setTiposEquipo] = useState<TipoEquipo[]>([]);
+  
+  // Nuevos estados para soportar la funcionalidad de repuestos de Figma
+  const [repuestosState, setRepuestosState] = useState<RepuestoModelo[]>([]);
+  const [listaRepuestosState, setListaRepuestosState] = useState<Repuesto[]>([]);
+  
   const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  // Estados de control para Modelo Detail Modal
   const [selectedModelo, setSelectedModelo] = useState<Modelo | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+
+  // Estados de control para Repuestos Modal
+  const [repuestosModelo, setRepuestosModelo] = useState<Modelo | null>(null);
+  const [isRepuestosModalOpen, setIsRepuestosModalOpen] = useState(false);
 
   useEffect(() => {
     async function loadData() {
       try {
+        // Integraremos las consultas de repuestos junto con la carga inicial
+        // Reemplaza con tus promesas de endpoints reales cuando estén listas
         const [modelosData, marcasData, tiposData] = await Promise.all([
           getModelos(),
           getMarcas(),
           getTiposEquipo(),
+          // getRepuestos(), 
+          // getRepuestosModelos()
         ]);
 
         setModelos(modelosData);
         setMarcasList(marcasData);
-        setTiposEquipo(tiposData);
+        setTiposEquipo(tipsData);
+        // setListaRepuestosState(repuestosData);
+        // setRepuestosState(relacionesData);
       } catch (err) {
         console.error(err);
-        setError('No se pudieron cargar los datos de modelos.');
+        setError('No se pudieron cargar los datos de modelos y componentes.');
       } finally {
         setLoading(false);
       }
@@ -63,7 +86,7 @@ export function Modelos() {
         modelo.numeroSerie.toLowerCase().includes(query)
       );
     });
-  }, [modelos, searchQuery]);
+  }, [modelos, searchQuery, marcasList, tiposEquipo]);
 
   const groupedModelos = useMemo(() => {
     const groups: Record<string, Record<string, Modelo[]>> = {};
@@ -84,12 +107,18 @@ export function Modelos() {
     });
 
     return groups;
-  }, [filteredModelos]);
+  }, [filteredModelos, tiposEquipo, marcasList]);
 
-  const handleModeloClick = (modelo: Modelo) => {
+  // Manejadores de modales corregidos
+  const handleOpenModeloModal = (modelo: Modelo) => {
     setSelectedModelo(modelo);
     setIsCreating(false);
     setIsModalOpen(true);
+  };
+
+  const handleOpenRepuestosModal = (modelo: Modelo) => {
+    setRepuestosModelo(modelo);
+    setIsRepuestosModalOpen(true);
   };
 
   const handleCreateModelo = () => {
@@ -98,6 +127,7 @@ export function Modelos() {
     setIsModalOpen(true);
   };
 
+  // Todo esto eventualmente escalará a llamadas fetch/axios hacia tu modelosController
   const handleSaveModelo = (modeloData: Omit<Modelo, 'id'>) => {
     if (selectedModelo) {
       setModelos(prev =>
@@ -118,16 +148,25 @@ export function Modelos() {
     setIsModalOpen(false);
   };
 
+  // Manejadores interactivos para el modal de repuestos asociados
+  const handleAddRepuesto = (newLink: RepuestoModelo) => {
+    setRepuestosState(prev => [...prev, newLink]);
+  };
+
+  const handleAddNewRepuesto = (newRepuesto: Repuesto, newLink: RepuestoModelo) => {
+    setListaRepuestosState(prev => [...prev, newRepuesto]);
+    setRepuestosState(prev => [...prev, newLink]);
+  };
+
+  const getRepuestosCount = (modeloId: string) =>
+    repuestosState.filter(rm => rm.modeloId === modeloId).length;
+
   if (loading) {
-    return (
-      <div className="py-10 text-center text-gray-600">Cargando modelos...</div>
-    );
+    return <div className="py-10 text-center text-gray-600">Cargando modelos...</div>;
   }
 
   if (error) {
-    return (
-      <div className="py-10 text-center text-red-600">{error}</div>
-    );
+    return <div className="py-10 text-center text-red-600">{error}</div>;
   }
 
   return (
@@ -172,13 +211,9 @@ export function Modelos() {
         <Card>
           <CardContent className="pt-12 pb-12 text-center">
             <Box className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              No se encontraron modelos
-            </h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No se encontraron modelos</h3>
             <p className="text-gray-600">
-              {searchQuery
-                ? 'Intenta con otro término de búsqueda'
-                : 'Comienza registrando tu primer modelo'}
+              {searchQuery ? 'Intenta con otro término de búsqueda' : 'Comienza registrando tu primer modelo'}
             </p>
           </CardContent>
         </Card>
@@ -201,45 +236,65 @@ export function Modelos() {
                     <div key={marcaNombre}>
                       <div className="flex items-center gap-2 mb-3">
                         <h4 className="font-semibold text-gray-900">{marcaNombre}</h4>
-                        <Badge className="bg-[#0066CC] hover:bg-[#0052A3]">
-                          {modelosArray.length}
-                        </Badge>
+                        <Badge className="bg-[#0066CC] hover:bg-[#0052A3]">{modelosArray.length}</Badge>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {modelosArray.map(modelo => (
-                          <Card
-                            key={modelo.id}
-                            className="hover:shadow-md transition-all cursor-pointer hover:border-[#0066CC]"
-                            onClick={() => handleModeloClick(modelo)}
-                          >
-                            <CardContent className="pt-4 pb-4">
-                              <div className="flex items-start justify-between mb-2">
-                                <div className="flex-1">
-                                  <p className="font-semibold text-gray-900">
-                                    {modelo.nombre}
-                                  </p>
-                                  {modelo.anoVersion && (
-                                    <p className="text-sm text-gray-600">
-                                      Año: {modelo.anoVersion}
-                                    </p>
-                                  )}
+                        {modelosArray.map(modelo => {
+                          const repCount = getRepuestosCount(modelo.id);
+                          return (
+                            <Card
+                              key={modelo.id}
+                              className="hover:shadow-md transition-all hover:border-[#0066CC]/40"
+                            >
+                              <CardContent className="pt-4 pb-4">
+                                <div className="flex items-start justify-between mb-2">
+                                  <div className="flex-1">
+                                    <p className="font-semibold text-gray-900">{modelo.nombre}</p>
+                                    {modelo.anoVersion && (
+                                      <p className="text-sm text-gray-600">Año: {modelo.anoVersion}</p>
+                                    )}
+                                  </div>
+                                  <Box className="w-5 h-5 text-[#0066CC] flex-shrink-0" />
                                 </div>
-                                <Box className="w-5 h-5 text-[#0066CC] flex-shrink-0" />
-                              </div>
-                              {modelo.numeroSerie && (
-                                <p className="text-xs text-gray-500 font-mono">
-                                  N/S: {modelo.numeroSerie}
-                                </p>
-                              )}
-                              {modelo.infoTecnica && (
-                                <p className="text-xs text-gray-500 mt-2 line-clamp-2">
-                                  {modelo.infoTecnica}
-                                </p>
-                              )}
-                            </CardContent>
-                          </Card>
-                        ))}
+                                
+                                {modelo.numeroSerie && (
+                                  <p className="text-xs text-gray-500 font-mono mb-1">N/S: {modelo.numeroSerie}</p>
+                                )}
+                                {modelo.infoTecnica && (
+                                  <p className="text-xs text-gray-500 mb-2 line-clamp-2">{modelo.infoTecnica}</p>
+                                )}
+
+                                {/* Botones de Acción Unificados de Figma */}
+                                <div className="flex gap-2 pt-2 border-t border-gray-100 mt-1">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="flex-1 text-xs h-7 border-[#0066CC]/40 text-[#0066CC] hover:bg-[#0066CC]/5"
+                                    onClick={() => handleOpenRepuestosModal(modelo)}
+                                  >
+                                    <Wrench className="w-3 h-3 mr-1" />
+                                    Repuestos
+                                    {repCount > 0 && (
+                                      <span className="ml-1.5 bg-[#0066CC] text-white text-[10px] rounded-full w-4 h-4 inline-flex items-center justify-center leading-none">
+                                        {repCount}
+                                      </span>
+                                    )}
+                                  </Button>
+                                  
+                                  <Button
+                                    size="sm"
+                                    className="flex-1 text-xs h-7 bg-[#0066CC] hover:bg-[#0052A3] text-white"
+                                    onClick={() => handleOpenModeloModal(modelo)}
+                                  >
+                                    <Info className="w-3 h-3 mr-1" />
+                                    Modelo
+                                  </Button>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          );
+                        })}
                       </div>
                     </div>
                   ))}
@@ -250,7 +305,7 @@ export function Modelos() {
         </div>
       )}
 
-      {/* Modelo Modal */}
+      {/* Modelo Detail Modal */}
       <ModeloModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -261,6 +316,18 @@ export function Modelos() {
         allModelos={modelos}
         marcasList={marcasList}
         tiposEquipo={tiposEquipo}
+      />
+
+      {/* Repuestos Modal */}
+      <RepuestosModal
+        isOpen={isRepuestosModalOpen}
+        onClose={() => setIsRepuestosModalOpen(false)}
+        modelo={repuestosModelo}
+        canAdd={isAdmin}
+        listaRepuestosState={listaRepuestosState}
+        repuestosState={repuestosState}
+        onAddRepuesto={handleAddRepuesto}
+        onAddNewRepuesto={handleAddNewRepuesto}
       />
     </div>
   );

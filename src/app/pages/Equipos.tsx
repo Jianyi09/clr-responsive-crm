@@ -5,33 +5,51 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Switch } from '../components/ui/switch';
 import { Label } from '../components/ui/label';
-import { Truck, Search, Plus, Package } from 'lucide-react';
+import { Truck, Search, Plus, Package, Wrench, Info } from 'lucide-react';
 import {
   type Cliente,
   type Equipo,
   type Marca,
   type Modelo,
   type TipoEquipo,
+  type RepuestoModelo,
+  type Repuesto,
 } from '../data/mockData';
 import { EquipoModal } from '../components/modals/EquipoModal';
+import { RepuestosModal } from '../components/modals/RepuestosModal';
 import { useAuth } from '../context/AuthContext';
-import { getEquiposInitData } from '../services/equiposApi';
+import { getEquiposInitData, saveEquipoApi, eliminarEquipoApi } from '../services/equiposApi';
 
 export function Equipos() {
   const { isAdmin } = useAuth();
+  
+  // Estados de datos reales de la Base de Datos
   const [equipos, setEquipos] = useState<Equipo[]>([]);
   const [clientesList, setClientesList] = useState<Cliente[]>([]);
   const [marcasList, setMarcasList] = useState<Marca[]>([]);
   const [modelosList, setModelosList] = useState<Modelo[]>([]);
   const [tiposEquipo, setTiposEquipo] = useState<TipoEquipo[]>([]);
+  
+  // Estados agregados por Figma para la gestión visual de repuestos (Mock temporales)
+  const [repuestosState, setRepuestosState] = useState<RepuestoModelo[]>([]);
+  const [listaRepuestos, setListaRepuestos] = useState<Repuesto[]>([]);
+
+  // Estados de filtros y UI
   const [searchQuery, setSearchQuery] = useState('');
   const [soloConEquipos, setSoloConEquipos] = useState(false);
-  const [selectedEquipo, setSelectedEquipo] = useState<Equipo | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Estados del Modal Principal del Equipo
+  const [selectedEquipo, setSelectedEquipo] = useState<Equipo | null>(null);
+  const [isEquipoModalOpen, setIsEquipoModalOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+
+  // Estados del Nuevo Modal de Repuestos (Lectura en esta pestaña)
+  const [repuestosEquipo, setRepuestosEquipo] = useState<Equipo | null>(null);
+  const [isRepuestosModalOpen, setIsRepuestosModalOpen] = useState(false);
+
+  // Carga inicial conectada al Puente Backend-Frontend
   useEffect(() => {
     async function loadData() {
       try {
@@ -43,8 +61,11 @@ export function Equipos() {
         setMarcasList(dashboardData.marcas);
         setModelosList(dashboardData.modelos);
         setTiposEquipo(dashboardData.tiposEquipo);
+        
+        // Inicializadores de repuestos si tu backend los incluye en el futuro
+        // Por ahora los dejamos vacíos o mapeados si vienen en el payload
       } catch (err) {
-        console.error(err)
+        console.error(err);
         setError('No se pudieron cargar los datos de los equipos reales.');
       } finally {
         setLoading(false);
@@ -54,17 +75,19 @@ export function Equipos() {
     loadData();
   }, []);
 
+  // Filtrado de clientes estructurado
   const clientesConEquipos = useMemo(() => {
-    const cliente = new Set(equipos.map(e => e.clienteId));
-    return clientesList.filter(c => soloConEquipos ? cliente.has(c.id) : true);
+    const clienteIds = new Set(equipos.map(e => e.clienteId));
+    return clientesList.filter(c => soloConEquipos ? clienteIds.has(c.id) : true);
   }, [soloConEquipos, equipos, clientesList]);
 
+  // Buscador inteligente unificado de Figma
   const filteredData = useMemo(() => {
     const query = searchQuery.toLowerCase();
-    
+
     const filtered = clientesConEquipos.map(cliente => {
       const clienteEquipos = equipos.filter(e => e.clienteId === cliente.id);
-      
+
       if (!searchQuery) {
         return { cliente, equipos: clienteEquipos };
       }
@@ -91,6 +114,7 @@ export function Equipos() {
     return filtered;
   }, [clientesConEquipos, equipos, searchQuery, marcasList, modelosList]);
 
+  // Agrupación por Tipo de Equipo
   const groupedByTipo = useMemo(() => {
     return filteredData.map(({ cliente, equipos: clienteEquipos }) => {
       const grouped = tiposEquipo.map(tipo => ({
@@ -100,38 +124,64 @@ export function Equipos() {
 
       return { cliente, grupos: grouped };
     });
-  }, [filteredData]);
+  }, [filteredData, tiposEquipo]);
 
-  const handleEquipoClick = (equipo: Equipo) => {
+  // Controladores de apertura de Modales
+  const handleOpenEquipoModal = (equipo: Equipo) => {
     setSelectedEquipo(equipo);
     setIsCreating(false);
-    setIsModalOpen(true);
+    setIsEquipoModalOpen(true);
+  };
+
+  const handleOpenRepuestosModal = (equipo: Equipo) => {
+    setRepuestosEquipo(equipo);
+    setIsRepuestosModalOpen(true);
   };
 
   const handleCreateEquipo = () => {
     setSelectedEquipo(null);
     setIsCreating(true);
-    setIsModalOpen(true);
+    setIsEquipoModalOpen(true);
   };
 
-  const handleSaveEquipo = (equipoData: Omit<Equipo, 'id'>) => {
-    if (selectedEquipo) {
-      setEquipos(prev =>
-        prev.map(e => (e.id === selectedEquipo.id ? { ...e, ...equipoData } : e))
-      );
-    } else {
-      const newEquipo: Equipo = {
-        ...equipoData,
-        id: Date.now().toString(),
-      };
-      setEquipos(prev => [newEquipo, ...prev]);
+  // Lógica Asíncrona del Puente al Backend (Guardar / Registrar)
+  const handleSaveEquipo = async (equipoData: Omit<Equipo, 'id'>) => {
+    try {
+      const idParaApi = selectedEquipo ? selectedEquipo.id : undefined;
+      const idGenerado = await saveEquipoApi(equipoData, idParaApi);
+
+      if (selectedEquipo) {
+        setEquipos(prev =>
+          prev.map(e => (e.id === selectedEquipo.id ? { ...e, ...equipoData } : e))
+        );
+      } else {
+        const newEquipo: Equipo = {
+          ...equipoData,
+          id: idGenerado,
+        };
+        setEquipos(prev => [newEquipo, ...prev]);
+      }
+      setIsEquipoModalOpen(false);
+    } catch (err) {
+      console.error(err);
+      alert(err instanceof Error ? err.message : 'Error al guardar el equipo en el servidor');
     }
-    setIsModalOpen(false);
   };
 
-  const handleDeleteEquipo = (id: string) => {
-    setEquipos(prev => prev.filter(e => e.id !== id));
-    setIsModalOpen(false);
+  // Lógica Asíncrona del Puente al Backend (Eliminar)
+  const handleDeleteEquipo = async (id: string) => {
+    if (!window.confirm('¿Está seguro de que desea eliminar este equipo permanentemente?')) {
+      return;
+    }
+
+    try {
+      await eliminarEquipoApi(id);
+      setEquipos(prev => prev.filter(e => e.id !== id));
+      setIsEquipoModalOpen(false);
+    } catch (err) {
+      console.error(err);
+      alert(err instanceof Error ? err.message : 'No se pudo eliminar el equipo del servidor');
+    }
   };
 
   const handleAddMarca = (marca: Marca) => {
@@ -142,18 +192,25 @@ export function Equipos() {
     setModelosList(prev => [...prev, modelo]);
   };
 
+  // Manejadores No-Op requeridos por el modal de repuestos (ya que es de solo lectura aquí)
+  const handleAddRepuesto = (newLink: RepuestoModelo) => {
+    setRepuestosState(prev => [...prev, newLink]);
+  };
+  const handleAddNewRepuesto = (_repuesto: Repuesto, _link: RepuestoModelo) => {};
+
   const totalEquipos = equipos.length;
 
+  // Busca el modelo asociado al equipo activo en el modal de repuestos
+  const modeloForRepuestos = repuestosEquipo
+    ? modelosList.find(m => m.id === repuestosEquipo.modeloId) ?? null
+    : null;
+
   if (loading) {
-    return (
-      <div className="py-10 text-center text-gray-600">Cargando equipos...</div>
-    );
+    return <div className="py-10 text-center text-gray-600">Cargando la flota de equipos reales...</div>;
   }
 
   if (error) {
-    return (
-      <div className="py-10 text-center text-red-600">{error}</div>
-    );
+    return <div className="py-10 text-center text-red-600">{error}</div>;
   }
 
   return (
@@ -251,8 +308,7 @@ export function Equipos() {
                           return (
                             <Card
                               key={equipo.id}
-                              className="hover:shadow-md transition-all cursor-pointer hover:border-[#0066CC]"
-                              onClick={() => handleEquipoClick(equipo)}
+                              className="hover:shadow-md transition-all hover:border-[#0066CC]/40"
                             >
                               <CardContent className="pt-4 pb-4">
                                 <div className="flex items-start justify-between mb-2">
@@ -266,14 +322,35 @@ export function Equipos() {
                                   </div>
                                   <Truck className="w-5 h-5 text-[#0066CC] flex-shrink-0" />
                                 </div>
-                                <p className="text-xs text-gray-500 font-mono">
+                                <p className="text-xs text-gray-500 font-mono mb-2">
                                   S/N: {equipo.serial}
                                 </p>
                                 {equipo.observacion && (
-                                  <p className="text-xs text-gray-500 mt-2 line-clamp-2">
+                                  <p className="text-xs text-gray-500 mb-3 line-clamp-2">
                                     {equipo.observacion}
                                   </p>
                                 )}
+
+                                {/* Botones de Acción de Figma Restablecidos */}
+                                <div className="flex gap-2 pt-2 border-t border-gray-100 mt-1">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="flex-1 text-xs h-7 border-[#0066CC]/40 text-[#0066CC] hover:bg-[#0066CC]/5"
+                                    onClick={() => handleOpenRepuestosModal(equipo)}
+                                  >
+                                    <Wrench className="w-3 h-3 mr-1" />
+                                    Repuestos
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    className="flex-1 text-xs h-7 bg-[#0066CC] hover:bg-[#0052A3] text-white"
+                                    onClick={() => handleOpenEquipoModal(equipo)}
+                                  >
+                                    <Info className="w-3 h-3 mr-1" />
+                                    Equipo
+                                  </Button>
+                                </div>
                               </CardContent>
                             </Card>
                           );
@@ -288,10 +365,10 @@ export function Equipos() {
         </div>
       )}
 
-      {/* Equipo Modal */}
+      {/* Modal Detalle/Edición Equipo Real */}
       <EquipoModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        isOpen={isEquipoModalOpen}
+        onClose={() => setIsEquipoModalOpen(false)}
         equipo={selectedEquipo}
         isCreating={isCreating}
         onSave={handleSaveEquipo}
@@ -303,6 +380,18 @@ export function Equipos() {
         modelosList={modelosList}
         onAddMarca={handleAddMarca}
         onAddModelo={handleAddModelo}
+      />
+
+      {/* Modal de Repuestos Inyectado de Figma (Solo Lectura en Equipos) */}
+      <RepuestosModal
+        isOpen={isRepuestosModalOpen}
+        onClose={() => setIsRepuestosModalOpen(false)}
+        modelo={modeloForRepuestos}
+        canAdd={false}
+        listaRepuestosState={listaRepuestos}
+        repuestosState={repuestosState}
+        onAddRepuesto={handleAddRepuesto}
+        onAddNewRepuesto={handleAddNewRepuesto}
       />
     </div>
   );

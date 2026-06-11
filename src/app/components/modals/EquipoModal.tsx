@@ -83,7 +83,16 @@ export function EquipoModal({
       setErrors({});
     } else if (equipo) {
       setMode('view');
-      setFormData(equipo);
+      setFormData({
+        clienteId: equipo.clienteId || '',
+        tipoEquipoId: equipo.tipoEquipoId || '',
+        marcaId: equipo.marcaId || '',
+        modeloId: equipo.modeloId || '',
+        aliasInterno: equipo.aliasInterno || '',
+        observacion: equipo.observacion || '',
+        serial: equipo.serial || '',
+        infoTecnica: equipo.infoTecnica || '',
+      });
       const marca = marcasList.find(m => m.id === equipo.marcaId);
       const modelo = modelosList.find(m => m.id === equipo.modeloId);
       setMarcaInput(marca?.nombre || '');

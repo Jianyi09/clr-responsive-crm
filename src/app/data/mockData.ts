@@ -45,6 +45,19 @@ export interface Equipo {
   tipoCombustible?: string;   
 }
 
+export interface Repuesto {
+  id: string;
+  nombre: string;
+  codigoParte: string;
+  infoTecnica: string;
+}
+
+export interface RepuestoModelo {
+  id: string;
+  modeloId: string;
+  repuestoId: string;
+}
+
 export const ESTADOS = ['La Romana', 'Santo Domingo', 'Santiago', 'La Vega', 'San Pedro'];
 
 export const CIUDADES: Record<string, string[]> = {
