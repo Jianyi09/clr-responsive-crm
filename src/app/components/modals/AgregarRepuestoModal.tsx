@@ -6,7 +6,7 @@ import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { ChevronDown, Save } from 'lucide-react';
 import { type Repuesto, type RepuestoModelo, type Modelo } from '../../data/mockData';
-import { marcas } from '../../data/mockData';
+// ELIMINADO: Ya no dependemos de la importación estática de 'marcas'
 
 type SaveResult =
   | { tipo: 'existing'; link: RepuestoModelo }
@@ -64,24 +64,28 @@ export function AgregarRepuestoModal({
 
   if (!modelo) return null;
 
-  const marca = marcas.find(m => m.id === modelo.marcaId);
+  // MODIFICADO: Extraemos el nombre de la marca directamente del objeto modelo inyectado
+  const nombreMarca = (modelo as any).marca_nombre || (modelo as any).marcaNombre || '';
 
-  // Available catalog: not already linked
-  const available = listaRepuestosState.filter(r => !alreadyLinkedIds.includes(r.id));
+  // MODIFICADO: Forzamos la comparación de los IDs a String para evitar conflictos de tipos (int vs string)
+  const available = listaRepuestosState.filter(
+    r => !alreadyLinkedIds.map(String).includes(String(r.id))
+  );
 
   const filteredOptions = available.filter(r => {
     if (!search) return true;
     const q = search.toLowerCase();
     return (
-      r.nombreRepuesto.toLowerCase().includes(q) ||
+      r.nombre.toLowerCase().includes(q) ||
       r.codigoParte.toLowerCase().includes(q)
     );
   });
 
-  const selectedRepuesto = available.find(r => r.id === selectedId);
+  // MODIFICADO: Búsqueda segura con casting
+  const selectedRepuesto = available.find(r => String(r.id) === String(selectedId));
 
   const handleSelectOption = (r: Repuesto) => {
-    setSelectedId(r.id);
+    setSelectedId(String(r.id));
     setSearch('');
     setIsDropdownOpen(false);
     setErrors({});
@@ -96,9 +100,9 @@ export function AgregarRepuestoModal({
     const errs: Record<string, string> = {};
 
     if (selectedId) {
-      // Linking existing repuesto
+      // MODIFICADO: El ID del link se deja vacío u opcional; la base de datos serializará el ID autoincremental
       const link: RepuestoModelo = {
-        id: Date.now().toString(),
+        id: '', 
         modeloId: modelo.id,
         repuestoId: selectedId,
       };
@@ -115,17 +119,20 @@ export function AgregarRepuestoModal({
       return;
     }
 
+    // MODIFICADO: Quitamos Date.now(). Deja que la BD maneje la secuencia de IDs de las entidades nuevas
     const newRepuesto: Repuesto = {
-      id: Date.now().toString(),
-      nombreRepuesto: newNombre.trim(),
+      id: '',
+      nombre: newNombre.trim(),
       codigoParte: newCodigo.trim(),
       infoTecnica: newInfoTecnica.trim(),
     };
+    
     const link: RepuestoModelo = {
-      id: (Date.now() + 1).toString(),
+      id: '',
       modeloId: modelo.id,
-      repuestoId: newRepuesto.id,
+      repuestoId: '', // Tu controlador interceptará esto para asignar el ID del repuesto recién creado
     };
+    
     onSave({ tipo: 'new', repuesto: newRepuesto, link });
   };
 
@@ -139,12 +146,12 @@ export function AgregarRepuestoModal({
             <Save className="w-5 h-5 text-[#FF6B35]" />
             Registrar Repuesto
           </DialogTitle>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <div className="text-sm text-gray-500 mt-0.5">
             Registrar repuesto para modelo{' '}
             <span className="font-medium text-gray-700">
-              {marca ? `${marca.nombre} — ` : ''}{modelo.nombre}
+              {nombreMarca ? `${nombreMarca} — ` : ''}{modelo.nombre}
             </span>
-          </p>
+          </div>
         </DialogHeader>
 
         <div className="space-y-5 py-2">
@@ -156,7 +163,7 @@ export function AgregarRepuestoModal({
               {selectedRepuesto ? (
                 <div className="flex items-center justify-between border border-gray-300 rounded-lg px-3 py-2 bg-white">
                   <div>
-                    <span className="text-sm font-medium text-gray-800">{selectedRepuesto.nombreRepuesto}</span>
+                    <span className="text-sm font-medium text-gray-800">{selectedRepuesto.nombre}</span>
                     <span className="text-sm text-gray-400 ml-2">• {selectedRepuesto.codigoParte}</span>
                   </div>
                   <button
@@ -180,7 +187,6 @@ export function AgregarRepuestoModal({
               {/* Dropdown panel */}
               {isDropdownOpen && !selectedRepuesto && (
                 <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
-                  {/* Search inside dropdown */}
                   <div className="p-2 border-b border-gray-100 sticky top-0 bg-white">
                     <Input
                       autoFocus
@@ -203,7 +209,7 @@ export function AgregarRepuestoModal({
                           onClick={() => handleSelectOption(r)}
                           className="w-full text-left px-3 py-2.5 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0"
                         >
-                          <span className="text-sm text-gray-800">{r.nombreRepuesto}</span>
+                          <span className="text-sm text-gray-800">{r.nombre}</span>
                           <span className="text-sm text-gray-400 ml-1.5">• {r.codigoParte}</span>
                         </button>
                       ))

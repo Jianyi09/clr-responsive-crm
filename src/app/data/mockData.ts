@@ -13,12 +13,12 @@ export interface Cliente {
 
 export interface TipoEquipo {
   id: string;
-  nombre: string;
+  tipoNombre: string;
 }
 
 export interface Marca {
   id: string;
-  nombre: string;
+  marcaNombre: string;
 }
 
 export interface Modelo {
@@ -29,7 +29,7 @@ export interface Modelo {
   anoVersion: string;
   numeroSerie: string;
   infoTecnica: string;
-  enlaceFichaTecnica?: string;
+  enlaceFichaTecnica: string;
 }
 
 export interface Equipo {
@@ -68,102 +68,3 @@ export const CIUDADES: Record<string, string[]> = {
   'San Pedro': ['Centro', 'Industrial'],
 };
 
-export const Clientes: Cliente[] = [
-  {
-    id: '1',
-    razonSocial: 'Constructora ABC S.A.',
-    rifDni: 'J-12345678-9',
-    ciudad: 'Santo Domingo',
-    estado: 'Nacional',
-    numeroTelefonico: '809-555-1234',
-    correoElectronico: 'info@constructoraabc.com',
-    contacto: 'Juan Pérez',
-    direccion: 'Calle Principal, Santo Domingo',
-    equiposRegistrados: 3,
-  },
-  {
-    id: '2',
-    razonSocial: 'Constructora DFG S.A.',
-    rifDni: 'J-12555555678-2',
-    ciudad: 'Santo Domingo',
-    estado: 'Nacional',
-    numeroTelefonico: '809-555-1234',
-    correoElectronico: 'info@constructoraabc.com',
-    contacto: 'Juan Pérez',
-    direccion: 'Calle Principal, Santo Domingo',
-    equiposRegistrados: 4,
-  },
-];
-
-export const tiposEquipo: TipoEquipo[] = [
-  { id: '1', nombre: 'Excavadora' },
-  { id: '2', nombre: 'Camión' },
-  { id: '3', nombre: 'Grúa' },
-  { id: '4', nombre: 'Montacargas' },
-];
-
-export const marcas: Marca[] = [
-  { id: '1', nombre: 'Caterpillar' },
-  { id: '2', nombre: 'Komatsu' },
-  { id: '3', nombre: 'Volvo' },
-  { id: '4', nombre: 'Toyota' },
-  { id: '5', nombre: 'Hyundai' },
-];
-
-export const modelos: Modelo[] = [
-  {
-    id: '1',
-    nombre: 'CAT 320D',
-    marcaId: '1',
-    tipoEquipoId: '1',
-    anoVersion: '2020',
-    numeroSerie: 'CAT320D-2020',
-    infoTecnica: 'Motor C4.4, 121 HP, peso 20.5 ton',
-    enlaceFichaTecnica: 'https://example.com/cat320d',
-  },
-  {
-    id: '2',
-    nombre: 'PC210',
-    marcaId: '2',
-    tipoEquipoId: '1',
-    anoVersion: '2019',
-    numeroSerie: 'PC210-2019',
-    infoTecnica: 'Motor SAA4D107E-1, 148 HP',
-    enlaceFichaTecnica: 'https://example.com/pc210',
-  },
-  {
-    id: '3',
-    nombre: 'FH16',
-    marcaId: '3',
-    tipoEquipoId: '2',
-    anoVersion: '2021',
-    numeroSerie: 'FH16-2021',
-    infoTecnica: 'Motor D16K, 750 HP, 16.1L',
-    enlaceFichaTecnica: 'https://example.com/fh16',
-  },
-];
-
-export const equipos: Equipo[] = [
-  {
-    id: '1',
-    clienteId: '1',
-    tipoEquipoId: '1',
-    marcaId: '1',
-    modeloId: '1',
-    aliasInterno: 'EXC-001',
-    observacion: 'Uso diario en obra principal',
-    serial: 'CAT320D2020-XYZ123',
-    infoTecnica: 'Mantenimiento al día, última revisión: 15/05/2026',
-  },
-  {
-    id: '2',
-    clienteId: '1',
-    tipoEquipoId: '1',
-    marcaId: '2',
-    modeloId: '2',
-    aliasInterno: 'EXC-002',
-    observacion: 'Asignada a proyecto Costa Este',
-    serial: 'PC210-2019-ABC456',
-    infoTecnica: 'Requiere cambio de filtros próximamente',
-  },
-];

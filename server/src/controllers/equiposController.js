@@ -11,9 +11,9 @@ export async function getEquiposDashboardApi(req, res) {
     const [resultadoEquipos, resultadoClientes, resultadoMarcas, resultadoModelos, resultadoTipos] = await Promise.all([
       db.query('SELECT id_equipo, id_cliente, id_tipo_equipo, id_marca, id_modelo, alias_interno, "Observacion" AS observacion, serial, informacion_tecnica AS info_tecnica FROM "Equipos_Clientes" ORDER BY id_equipo DESC'),
       db.query('SELECT id_clientes, razon_social FROM "Clientes" ORDER BY razon_social ASC'),
-      db.query('SELECT id_marca, marca AS nombre FROM "Marcas_Equipos" ORDER BY marca ASC'),
+      db.query('SELECT id_marca, marca AS marcaNombre FROM "Marcas_Equipos" ORDER BY marca ASC'),
       db.query('SELECT id_modelo, id_marca, id_tipo_equipo, modelo AS nombre FROM "Modelos_Equipos" ORDER BY modelo ASC'),
-      db.query('SELECT id_tipo_equipo, nombre_tipo_equipo AS nombre FROM "Tipos_Equipos" ORDER BY nombre_tipo_equipo ASC')
+      db.query('SELECT id_tipo_equipo, nombre_tipo_equipo AS tipoNombre FROM "Tipos_Equipos" ORDER BY nombre_tipo_equipo ASC')
     ]);
 
     res.json({

@@ -52,7 +52,7 @@ export async function getEquiposInitData(): Promise<EquiposDashboardPayload> {
     })),
     marcas: (data.marcas || []).map((m: any) => ({
       id: String(m.id_marca),
-      nombre: m.nombre,
+      marcaNombre: m.nombre,
     })),
     modelos: (data.modelos || []).map((mod: any) => ({
       id: String(mod.id_modelo),
@@ -62,7 +62,7 @@ export async function getEquiposInitData(): Promise<EquiposDashboardPayload> {
     })),
     tiposEquipo: (data.tiposEquipo || []).map((t: any) => ({
       id: String(t.id_tipo_equipo),
-      nombre: t.nombre,
+      tipoNombre: t.nombre,
     })),
   };
 }

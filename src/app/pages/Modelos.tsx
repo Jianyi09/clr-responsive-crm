@@ -8,15 +8,19 @@ import {
   type Marca,
   type Modelo,
   type TipoEquipo,
-  // Nota: Asegúrate de definir o importar estos tipos según correspondan a tus entidades
   type Repuesto,
   type RepuestoModelo,
 } from '../data/mockData'; 
 import { ModeloModal } from '../components/modals/ModeloModal';
 import { RepuestosModal } from '../components/modals/RepuestosModal'; // Importación del nuevo modal
 import { useAuth } from '../context/AuthContext';
-// Aquí importarás tus funciones de endpoints reales del API de modelos y repuestos cuando los crees:
-// import { getModelos, getMarcas, getTiposEquipo, getRepuestos, getRepuestosModelos } from '../api/endpoints';
+import { 
+  getModelosApi, 
+  saveModeloApi, 
+  deleteModeloApi, 
+  asociarRepuestoApi,
+  getAllRepuestosModelosLinksApi // Asegúrate de exportarlo si se usa
+} from '../services/modelosApi';
 
 export function Modelos() {
   const { isAdmin } = useAuth();
@@ -24,7 +28,6 @@ export function Modelos() {
   const [marcasList, setMarcasList] = useState<Marca[]>([]);
   const [tiposEquipo, setTiposEquipo] = useState<TipoEquipo[]>([]);
   
-  // Nuevos estados para soportar la funcionalidad de repuestos de Figma
   const [repuestosState, setRepuestosState] = useState<RepuestoModelo[]>([]);
   const [listaRepuestosState, setListaRepuestosState] = useState<Repuesto[]>([]);
   
@@ -32,36 +35,30 @@ export function Modelos() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Estados de control para Modelo Detail Modal
   const [selectedModelo, setSelectedModelo] = useState<Modelo | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
 
-  // Estados de control para Repuestos Modal
   const [repuestosModelo, setRepuestosModelo] = useState<Modelo | null>(null);
   const [isRepuestosModalOpen, setIsRepuestosModalOpen] = useState(false);
 
   useEffect(() => {
     async function loadData() {
       try {
-        // Integraremos las consultas de repuestos junto con la carga inicial
-        // Reemplaza con tus promesas de endpoints reales cuando estén listas
-        const [modelosData, marcasData, tiposData] = await Promise.all([
-          getModelos(),
-          getMarcas(),
-          getTiposEquipo(),
-          // getRepuestos(), 
-          // getRepuestosModelos()
+        setLoading(true);
+        
+        // Solo llamamos a las dos cosas que realmente maneja este módulo
+        const [modelosData, linksData] = await Promise.all([
+          getModelosApi(),
+          getAllRepuestosModelosLinksApi().catch(() => []), 
         ]);
 
         setModelos(modelosData);
-        setMarcasList(marcasData);
-        setTiposEquipo(tipsData);
-        // setListaRepuestosState(repuestosData);
-        // setRepuestosState(relacionesData);
-      } catch (err) {
+        setRepuestosState(linksData);
+
+      } catch (err: any) {
         console.error(err);
-        setError('No se pudieron cargar los datos de modelos y componentes.');
+        setError('No se pudieron cargar los datos de modelos.');
       } finally {
         setLoading(false);
       }
@@ -75,39 +72,32 @@ export function Modelos() {
 
     const query = searchQuery.toLowerCase();
     return modelos.filter(modelo => {
-      const marca = marcasList.find(m => m.id === modelo.marcaId);
-      const tipo = tiposEquipo.find(t => t.id === modelo.tipoEquipoId);
-
       return (
         modelo.nombre.toLowerCase().includes(query) ||
-        marca?.nombre.toLowerCase().includes(query) ||
-        tipo?.nombre.toLowerCase().includes(query) ||
         modelo.anoVersion.toLowerCase().includes(query) ||
         modelo.numeroSerie.toLowerCase().includes(query)
       );
     });
-  }, [modelos, searchQuery, marcasList, tiposEquipo]);
+  }, [modelos, searchQuery]);
 
   const groupedModelos = useMemo(() => {
     const groups: Record<string, Record<string, Modelo[]>> = {};
 
     filteredModelos.forEach(modelo => {
-      const tipo = tiposEquipo.find(t => t.id === modelo.tipoEquipoId);
-      const marca = marcasList.find(m => m.id === modelo.marcaId);
+      const tipoNombre = (modelo as any).tipoNombre || 'Sin Tipo';
+      const marcaNombre = (modelo as any).marcaNombre || 'Sin Marca';
 
-      if (tipo && marca) {
-        if (!groups[tipo.nombre]) {
-          groups[tipo.nombre] = {};
-        }
-        if (!groups[tipo.nombre][marca.nombre]) {
-          groups[tipo.nombre][marca.nombre] = [];
-        }
-        groups[tipo.nombre][marca.nombre].push(modelo);
+      if (!groups[tipoNombre]) {
+        groups[tipoNombre] = {};
       }
+      if (!groups[tipoNombre][marcaNombre]) {
+        groups[tipoNombre][marcaNombre] = [];
+      }
+      groups[tipoNombre][marcaNombre].push(modelo);
     });
 
     return groups;
-  }, [filteredModelos, tiposEquipo, marcasList]);
+  }, [filteredModelos]);
 
   // Manejadores de modales corregidos
   const handleOpenModeloModal = (modelo: Modelo) => {

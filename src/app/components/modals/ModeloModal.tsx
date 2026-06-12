@@ -128,8 +128,17 @@ export function ModeloModal({
     }
   };
 
-  const marca = marcasList.find(m => m.id === formData.marcaId);
-  const tipo = tiposEquipo.find(t => t.id === formData.tipoEquipoId);
+  // Busca la marca usando tu interfaz con 'marcaNombre'
+  const nombreMarcaAMostrar = 
+    (formData as any).marca_nombre || 
+    marcasList.find(m => String(m.id) === String(formData.marcaId))?.marcaNombre || 
+    'Sin Marca';
+
+  // Busca el tipo usando tu interfaz con 'tipoNombre'
+  const nombreTipoAMostrar = 
+    (formData as any).tipo_nombre || 
+    tiposEquipo.find(t => String(t.id) === String(formData.tipoEquipoId))?.tipoNombre || 
+    'Sin Tipo';
 
   return (
     <>
@@ -153,11 +162,11 @@ export function ModeloModal({
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Marca</p>
-                    <p className="font-medium">{marca?.nombre}</p>
+                    <p className="font-medium">{nombreMarcaAMostrar}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Tipo de Equipo</p>
-                    <p className="font-medium">{tipo?.nombre}</p>
+                    <p className="font-medium">{nombreTipoAMostrar}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Año / Versión</p>
@@ -213,7 +222,7 @@ export function ModeloModal({
                       </SelectTrigger>
                       <SelectContent>
                         {marcasList.map(m => (
-                          <SelectItem key={m.id} value={m.id}>{m.nombre}</SelectItem>
+                          <SelectItem key={m.id} value={m.id}>{m.marcaNombre}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -228,7 +237,7 @@ export function ModeloModal({
                       </SelectTrigger>
                       <SelectContent>
                         {tiposEquipo.map(t => (
-                          <SelectItem key={t.id} value={t.id}>{t.nombre}</SelectItem>
+                          <SelectItem key={t.id} value={t.id}>{t.tipoNombre}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

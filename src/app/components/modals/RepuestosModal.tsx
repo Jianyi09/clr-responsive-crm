@@ -4,14 +4,13 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Wrench, Plus } from 'lucide-react';
 import { type Repuesto, type RepuestoModelo, type Modelo } from '../../data/mockData';
-import { marcas } from '../../data/mockData';
 import { AgregarRepuestoModal } from './AgregarRepuestoModal';
+
 
 interface RepuestosModalProps {
   isOpen: boolean;
   onClose: () => void;
   modelo: Modelo | null;
-  /** If true, shows the Add Repuesto button (used in Modelos page) */
   canAdd?: boolean;
   listaRepuestosState: Repuesto[];
   repuestosState: RepuestoModelo[];
@@ -33,14 +32,14 @@ export function RepuestosModal({
 
   if (!modelo) return null;
 
-  const marca = marcas.find(m => m.id === modelo.marcaId);
+  const nombreMarca = (modelo as any).marca || (modelo as any).marcaNombre || 'Sin Marca';
 
   const linkedIds = repuestosState
-    .filter(rm => rm.modeloId === modelo.id)
-    .map(rm => rm.repuestoId);
+    .filter(rm => String(rm.modeloId) === String(modelo.id))
+    .map(rm => String(rm.repuestoId));
 
   const linkedRepuestos: Repuesto[] = linkedIds
-    .map(id => listaRepuestosState.find(r => r.id === id))
+    .map(id => listaRepuestosState.find(r => String(r.id) === String(id)))
     .filter(Boolean) as Repuesto[];
 
   const handleAddDone = (
@@ -66,7 +65,7 @@ export function RepuestosModal({
             <div className="mt-1">
               <p className="text-sm text-gray-500">
                 Modelo: <span className="font-semibold text-gray-700">{modelo.nombre}</span>
-                {marca && <span className="ml-2 text-gray-400">— {marca.nombre}</span>}
+                <span className="ml-2 text-gray-400">— {nombreMarca}</span>
               </p>
             </div>
           </DialogHeader>
@@ -117,7 +116,7 @@ export function RepuestosModal({
                     {linkedRepuestos.map((repuesto, idx) => (
                       <tr key={repuesto.id} className="hover:bg-gray-50 transition-colors">
                         <td className="py-3 px-3 text-gray-400 text-xs">{idx + 1}</td>
-                        <td className="py-3 px-3 font-medium text-gray-800">{repuesto.nombreRepuesto}</td>
+                        <td className="py-3 px-3 font-medium text-gray-800">{repuesto.nombre}</td>
                         <td className="py-3 px-3">
                           <Badge variant="secondary" className="font-mono text-xs">
                             {repuesto.codigoParte}
@@ -134,6 +133,7 @@ export function RepuestosModal({
             )}
           </div>
 
+          {/* Footer de la ventana principal */}
           <DialogFooter className="border-t border-gray-100 pt-3">
             <span className="text-xs text-gray-400 mr-auto">
               {linkedRepuestos.length} repuesto{linkedRepuestos.length !== 1 ? 's' : ''} registrado{linkedRepuestos.length !== 1 ? 's' : ''}
@@ -145,7 +145,7 @@ export function RepuestosModal({
         </DialogContent>
       </Dialog>
 
-      {/* Dedicated Add Repuesto Modal */}
+      {/* Modal secundario para asociar/crear repuestos */}
       <AgregarRepuestoModal
         isOpen={isAgregarOpen}
         onClose={() => setIsAgregarOpen(false)}

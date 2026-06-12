@@ -22,7 +22,7 @@ export async function getModelosApi(): Promise<Modelo[]> {
     nombre: m.nombre || '',
     anoVersion: m.anoVersion || '',
     numeroSerie: m.numeroSerie || '', // Mapeado directamente desde la columna "Serie" de la BD
-    linkFichTecn: m.linkFichTecn || '',
+    enlaceFichaTecnica: m.enlaceFichaTecnica || '', // Ajustado al alias del controlador final
     infoTecnica: m.infoTecnica || '',
     marcaId: String(m.marcaId),
     tipoEquipoId: String(m.tipoEquipoId),
@@ -44,8 +44,8 @@ export async function saveModeloApi(
   const bodyBackend = {
     nombre: modeloData.nombre,
     anoVersion: modeloData.anoVersion,
-    numeroSerie: modeloData.numeroSerie, // Viaja como numeroSerie al backend
-    linkFichTecn: (modeloData as any).linkFichTecn || null, // Atributo opcional de ficha técnica
+    numeroSerie: modeloData.numeroSerie, 
+    enlaceFichaTecnica: (modeloData as any).enlaceFichaTecnica || null, // Alineado al controlador
     infoTecnica: modeloData.infoTecnica,
     marcaId: Number(modeloData.marcaId),
     tipoEquipoId: Number(modeloData.tipoEquipoId)
@@ -64,16 +64,16 @@ export async function saveModeloApi(
 
   const resData = await response.json();
   
-  // Retornamos el objeto insertado/actualizado normalizado para actualizar el estado local de React
+  // Tu controlador retorna RETURNING * (o el mapeo seguro). Traducimos las columnas de la BD al objeto del Frontend
   return {
-    id: String(resData.id),
-    nombre: resData.nombre,
-    anoVersion: resData.anoVersion || '',
-    numeroSerie: resData.numeroSerie || '',
-    linkFichTecn: resData.linkFichTecn || '',
-    infoTecnica: resData.infoTecnica || '',
-    marcaId: String(resData.marcaId),
-    tipoEquipoId: String(resData.tipoEquipoId)
+    id: String(resData.id_modelo || resData.id),
+    nombre: resData.modelo || resData.nombre,
+    anoVersion: resData.year || resData.anoVersion || '',
+    numeroSerie: resData.Serie || resData.numeroSerie || '',
+    enlaceFichaTecnica: resData.link_fich_tecn || resData.enlaceFichaTecnica || '',
+    infoTecnica: resData.inf_tecnica || resData.infoTecnica || '',
+    marcaId: String(resData.id_marca || resData.marcaId),
+    tipoEquipoId: String(resData.id_tipo_equipo || resData.tipoEquipoId)
   };
 }
 
@@ -92,36 +92,68 @@ export async function deleteModeloApi(id: string): Promise<void> {
   }
 }
 
+// Estructura de retorno esperada para la actualización de estados de los modales en React
+interface AssociationResponse {
+  message: string;
+  tipo: 'existing' | 'new';
+  link: RepuestoModelo;
+  repuesto: Repuesto | null; 
+}
+
 /**
- * 4. VINCULAR UN REPUESTO CON UN MODELO (POST /api/modelos/repuestos)
- * Conectado con: modelosController.linkRepuestoToModelo
+ * 4. ASOCIAR UN REPUESTO EXISTENTE O NUEVO (POST /api/modelos/:id/repuestos)
+ * Conectado con: modelosController.asociarRepuesto
  */
-export async function linkRepuestoToModeloApi(modeloId: string, repuestoId: string): Promise<RepuestoModelo> {
-  const response = await fetch(`${API_BASE_URL}/api/modelos/repuestos`, {
+export async function asociarRepuestoApi(
+  modeloId: string,
+  payload: {
+    tipo: 'existing' | 'new';
+    repuestoId: string | null;
+    nuevoRepuesto?: Omit<Repuesto, 'id'>;
+  }
+): Promise<AssociationResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/modelos/${modeloId}/repuestos`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      modeloId: Number(modeloId),
-      repuestoId: Number(repuestoId)
+      tipo: payload.tipo,
+      repuestoId: payload.repuestoId ? Number(payload.repuestoId) : null,
+      nuevoRepuesto: payload.nuevoRepuesto ? {
+        nombre: payload.nuevoRepuesto.nombre,
+        codigoParte: payload.nuevoRepuesto.codigoParte,
+        infoTecnica: payload.nuevoRepuesto.infoTecnica
+      } : null
     }),
   });
 
   if (!response.ok) {
     const errData = await response.json().catch(() => ({}));
-    throw new Error(errData.error || 'Error al asociar el repuesto con el modelo.');
+    throw new Error(errData.error || 'Error al procesar la asociación del repuesto en el servidor.');
   }
 
   const resData = await response.json();
-  
+
+  // Mapeamos y normalizamos las respuestas asegurando tipos string en los identificadores
   return {
-    modeloId: String(resData.modeloId),
-    repuestoId: String(resData.repuestoId)
+    message: resData.message,
+    tipo: resData.tipo,
+    link: {
+      id: String(resData.link.id_repuesto_modelo || resData.link.id),
+      modeloId: String(resData.link.modeloId),
+      repuestoId: String(resData.link.repuestoId)
+    },
+    repuesto: resData.repuesto ? {
+      id: String(resData.repuesto.id_repuesto || resData.repuesto.id),
+      nombre: resData.repuesto.nombre,
+      codigoParte: resData.repuesto.codigoParte,
+      infoTecnica: resData.repuesto.infoTecnica || ''
+    } : null
   };
 }
 
 /**
  * 5. OBTENER TODAS LAS RELACIONES DE COMPONENTES ACTIVAS (GET /api/modelos/repuestos/links)
- * Conectado con: modelosController.getAllRepuestosModelosLinks
+ * Nota: Asegúrate de tener este endpoint mapeado en tus rutas apuntando a una consulta SELECT * FROM "Repuesto_Modelo"
  */
 export async function getAllRepuestosModelosLinksApi(): Promise<RepuestoModelo[]> {
   const response = await fetch(`${API_BASE_URL}/api/modelos/repuestos/links`);
@@ -134,7 +166,8 @@ export async function getAllRepuestosModelosLinksApi(): Promise<RepuestoModelo[]
   const data = await response.json();
   
   return data.map((link: any) => ({
-    modeloId: String(link.modeloId),
-    repuestoId: String(link.repuestoId)
+    id: String(link.id_repuesto_modelo || link.id),
+    modeloId: String(link.id_modelo || link.modeloId),
+    repuestoId: String(link.id_repuesto || link.repuestoId)
   }));
 }

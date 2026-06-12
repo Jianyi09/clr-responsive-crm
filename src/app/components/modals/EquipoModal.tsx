@@ -95,7 +95,7 @@ export function EquipoModal({
       });
       const marca = marcasList.find(m => m.id === equipo.marcaId);
       const modelo = modelosList.find(m => m.id === equipo.modeloId);
-      setMarcaInput(marca?.nombre || '');
+      setMarcaInput(marca?.marcaNombre || '');
       setModeloInput(modelo?.nombre || '');
       setErrors({});
     }
@@ -109,7 +109,7 @@ export function EquipoModal({
 
   const handleMarcaInputChange = (value: string) => {
     setMarcaInput(value);
-    const marca = marcasList.find(m => m.nombre.toLowerCase() === value.toLowerCase());
+    const marca = marcasList.find(m => m.marcaNombre.toLowerCase() === value.toLowerCase());
     if (marca) {
       setFormData(prev => ({ ...prev, marcaId: marca.id }));
     } else {
@@ -119,7 +119,7 @@ export function EquipoModal({
 
   const handleMarcaInputBlur = () => {
     if (marcaInput && !formData.marcaId) {
-      const exists = marcasList.some(m => m.nombre.toLowerCase() === marcaInput.toLowerCase());
+      const exists = marcasList.some(m => m.marcaNombre.toLowerCase() === marcaInput.toLowerCase());
       if (!exists) {
         setNewMarcaName(marcaInput);
         setShowMarcaDialog(true);
@@ -130,13 +130,13 @@ export function EquipoModal({
   const handleCreateMarca = () => {
     const newMarca: Marca = {
       id: Date.now().toString(),
-      nombre: newMarcaName,
+      marcaNombre: newMarcaName,
     };
     onAddMarca(newMarca);
     setFormData(prev => ({ ...prev, marcaId: newMarca.id }));
-    setMarcaInput(newMarca.nombre);
+    setMarcaInput(newMarca.marcaNombre);
     setShowMarcaDialog(false);
-    toast.success(`Marca "${newMarca.nombre}" creada exitosamente`);
+    toast.success(`Marca "${newMarca.marcaNombre}" creada exitosamente`);
   };
 
   const handleModeloInputChange = (value: string) => {
@@ -240,7 +240,7 @@ export function EquipoModal({
         setFormData(equipo);
         const marca = marcasList.find(m => m.id === equipo.marcaId);
         const modelo = modelosList.find(m => m.id === equipo.modeloId);
-        setMarcaInput(marca?.nombre || '');
+        setMarcaInput(marca?.marcaNombre || '');
         setModeloInput(modelo?.nombre || '');
       }
       setErrors({});
@@ -278,11 +278,11 @@ export function EquipoModal({
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Tipo de Equipo</p>
-                    <p className="font-medium">{tipo?.nombre}</p>
+                    <p className="font-medium">{tipo?.tipoNombre}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Marca</p>
-                    <p className="font-medium">{marca?.nombre}</p>
+                    <p className="font-medium">{marca?.marcaNombre}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Modelo</p>
@@ -339,7 +339,7 @@ export function EquipoModal({
                       </SelectTrigger>
                       <SelectContent>
                         {tiposEquipo.map(t => (
-                          <SelectItem key={t.id} value={t.id}>{t.nombre}</SelectItem>
+                          <SelectItem key={t.id} value={t.id}>{t.tipoNombre}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -372,7 +372,7 @@ export function EquipoModal({
                       />
                       <datalist id="marcas-list">
                         {marcasList.map(m => (
-                          <option key={m.id} value={m.nombre} />
+                          <option key={m.id} value={m.marcaNombre} />
                         ))}
                       </datalist>
                     </div>

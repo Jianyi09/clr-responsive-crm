@@ -101,9 +101,9 @@ export function Equipos() {
           equipo.aliasInterno.toLowerCase().includes(query) ||
           equipo.serial.toLowerCase().includes(query) ||
           equipo.observacion.toLowerCase().includes(query) ||
-          marca?.nombre.toLowerCase().includes(query) ||
+          marca?.marcaNombre.toLowerCase().includes(query) ||
           modelo?.nombre.toLowerCase().includes(query) ||
-          tipo?.nombre.toLowerCase().includes(query) ||
+          tipo?.tipoNombre.toLowerCase().includes(query) ||
           cliente.razonSocial.toLowerCase().includes(query)
         );
       });
@@ -294,7 +294,7 @@ export function Equipos() {
                     <div key={tipo.id}>
                       <div className="flex items-center gap-2 mb-3">
                         <Package className="w-4 h-4 text-[#FF6B35]" />
-                        <h4 className="font-semibold text-gray-900">{tipo.nombre}</h4>
+                        <h4 className="font-semibold text-gray-900">{tipo.tipoNombre}</h4>
                         <Badge className="bg-[#FF6B35] hover:bg-[#E5582C]">
                           {tipoEquipos.length}
                         </Badge>
@@ -317,7 +317,7 @@ export function Equipos() {
                                       {equipo.aliasInterno}
                                     </p>
                                     <p className="text-sm text-gray-600">
-                                      {marca?.nombre} - {modelo?.nombre}
+                                      {marca?.marcaNombre} - {modelo?.nombre}
                                     </p>
                                   </div>
                                   <Truck className="w-5 h-5 text-[#0066CC] flex-shrink-0" />
