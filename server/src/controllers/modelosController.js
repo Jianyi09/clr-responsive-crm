@@ -8,16 +8,16 @@ export async function getAllModelos(req, res) {
     const db = req.db || pool;
     const query = `
       SELECT 
-        m.id_modelo AS id, 
-        m.modelo AS nombre,
-        m.year AS anoVersion,
-        m."Serie" AS numeroSerie,
-        m.inf_tecnica AS infoTecnica,
-        m.link_fich_tecn AS enlaceFichaTecnica,
-        m.id_marca AS marcaId,
-        m.id_tipo_equipo AS tipoEquipoId,
-        ma.marca AS marcaNombre, 
-        te.nombre_tipo_equipo AS tipoNombre
+        m.id_modelo, 
+        m.modelo AS "nombre",
+        m.year AS "anoVersion",
+        m."Serie" AS "numeroSerie",
+        m.inf_tecnica AS "infoTecnica",
+        m.link_fich_tecn AS "enlaceFichaTecnica",
+        m.id_marca AS "marcaId",
+        m.id_tipo_equipo AS "tipoEquipoId",
+        ma.marca AS "marcaNombre", 
+        te.nombre_tipo_equipo AS "tipoNombre"
       FROM "Modelos_Equipos" m
       JOIN "Marcas_Equipos" ma ON m.id_marca = ma.id_marca
       JOIN "Tipos_Equipos" te ON m.id_tipo_equipo = te.id_tipo_equipo

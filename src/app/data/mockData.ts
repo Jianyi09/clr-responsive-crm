@@ -30,6 +30,8 @@ export interface Modelo {
   numeroSerie: string;
   infoTecnica: string;
   enlaceFichaTecnica: string;
+  marcaNombre: string;
+  tipoNombre: string;
 }
 
 export interface Equipo {

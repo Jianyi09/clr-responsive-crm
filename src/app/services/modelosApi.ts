@@ -16,16 +16,18 @@ export async function getModelosApi(): Promise<Modelo[]> {
   
   const data = await response.json();
 
-  // Aseguramos que los tipos de datos e IDs vengan estructurados como strings para evitar fallas en el Front
+  // MAPEÓ CRUCIAL: Pasamos los alias que configuramos en el controlador al Front
   return data.map((m: any) => ({
-    id: String(m.id),
+    id: String(m.id_modelo || m.id),
     nombre: m.nombre || '',
     anoVersion: m.anoVersion || '',
-    numeroSerie: m.numeroSerie || '', // Mapeado directamente desde la columna "Serie" de la BD
-    enlaceFichaTecnica: m.enlaceFichaTecnica || '', // Ajustado al alias del controlador final
+    numeroSerie: m.numeroSerie || '', 
+    enlaceFichaTecnica: m.enlaceFichaTecnica || '', 
     infoTecnica: m.infoTecnica || '',
     marcaId: String(m.marcaId),
     tipoEquipoId: String(m.tipoEquipoId),
+    marcaNombre: m.marcaNombre || 'Sin Marca',
+    tipoNombre: m.tipoNombre || 'Sin Tipo'
   }));
 }
 
@@ -73,7 +75,9 @@ export async function saveModeloApi(
     enlaceFichaTecnica: resData.link_fich_tecn || resData.enlaceFichaTecnica || '',
     infoTecnica: resData.inf_tecnica || resData.infoTecnica || '',
     marcaId: String(resData.id_marca || resData.marcaId),
-    tipoEquipoId: String(resData.id_tipo_equipo || resData.tipoEquipoId)
+    tipoEquipoId: String(resData.id_tipo_equipo || resData.tipoEquipoId),
+    marcaNombre: resData.marcaNombre || 'Sin Marca',
+    tipoNombre: resData.tipoNombre || 'Sin Tipo'
   };
 }
 

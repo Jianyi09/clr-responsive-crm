@@ -11,16 +11,17 @@ import { useAuth } from '../../context/AuthContext';
 import { type Marca, type Modelo, type TipoEquipo } from '../../data/mockData';
 import { toast } from 'sonner';
 
+// Definición de propiedades estrictas que el componente padre debe inyectar
 interface ModeloModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  modelo: Modelo | null;
-  isCreating: boolean;
-  onSave: (modeloData: Omit<Modelo, 'id'>) => void;
-  onDelete: (id: string) => void;
-  allModelos: Modelo[];
-  marcasList: Marca[];
-  tiposEquipo: TipoEquipo[];
+  isOpen: boolean; // Flag que controla la visibilidad física del cuadro de diálogo
+  onClose: () => void; // Función callback para abortar y cerrar el modal
+  modelo: Modelo | null; // El objeto con los datos del modelo activo (null si es nuevo)
+  isCreating: boolean; // Flag para forzar comportamiento de formulario vacío
+  onSave: (modeloData: Omit<Modelo, 'id'>) => void; // Callback del canal de persistencia
+  onDelete: (id: string) => void; // Callback para disparar eventos DELETE
+  allModelos: Modelo[]; // Listado total de modelos (útil para auditoría o validaciones cruzadas)
+  marcasList: Marca[]; // Colección maestro traída de la tabla "Marcas_Equipos"
+  tiposEquipo: TipoEquipo[]; // Colección maestro traída de la tabla "Tipos_Equipos"
 }
 
 export function ModeloModal({
@@ -34,10 +35,11 @@ export function ModeloModal({
   marcasList,
   tiposEquipo,
 }: ModeloModalProps) {
-  const { isAdmin } = useAuth();
-  const [mode, setMode] = useState<'view' | 'edit'>('view');
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const { isAdmin } = useAuth(); // Valida permisos del rol para ocultar/mostrar botones CRUD
+  const [mode, setMode] = useState<'view' | 'edit'>('view'); // Controla si renderiza etiquetas de lectura o inputs de formulario
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false); // Bandera para activar la ventana de confirmación destructiva
 
+  // Estructura interna del formulario que emula exactamente las columnas de la tabla base "Modelos_Equipos"
   const [formData, setFormData] = useState({
     nombre: '',
     marcaId: '',
@@ -48,11 +50,14 @@ export function ModeloModal({
     enlaceFichaTecnica: '',
   });
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({}); // Almacena mensajes de validación por campo
 
+  // ====================================================
+  // EFECTO SENSE: Sincroniza el formulario al abrir/cambiar entidad
+  // ====================================================
   useEffect(() => {
     if (isCreating) {
-      setMode('edit');
+      setMode('edit'); // Fuerza el formulario editable si el usuario desea registrar un modelo nuevo
       setFormData({
         nombre: '',
         marcaId: '',
@@ -64,29 +69,33 @@ export function ModeloModal({
       });
       setErrors({});
     } else if (modelo) {
-      setMode('view');
-      setFormData(modelo);
+      setMode('view'); // Por defecto, si el modelo existe, abre en formato de ficha de lectura limpia
+      setFormData({
+        nombre: modelo.nombre || '',
+        // COMPORTAMIENTO PUENTE: Tolera tanto los alias tipados de JS (marcaId) como los crudos de la BD (id_marca)
+        marcaId: String((modelo as any).id_marca || modelo.marcaId || ''),
+        tipoEquipoId: String((modelo as any).id_tipo_equipo || modelo.tipoEquipoId || ''),
+        anoVersion: modelo.anoVersion || '',
+        numeroSerie: modelo.numeroSerie || '',
+        infoTecnica: modelo.infoTecnica || '',
+        enlaceFichaTecnica: modelo.enlaceFichaTecnica || '',
+      });
       setErrors({});
     }
   }, [modelo, isCreating, isOpen]);
 
+  // ====================================================
+  // VALIDACIONES DE INTEGRIDAD DE DATOS (FRONTEND)
+  // ====================================================
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.nombre.trim()) {
-      newErrors.nombre = 'El nombre del modelo es requerido';
-    }
-    if (!formData.marcaId) {
-      newErrors.marcaId = 'La marca es requerida';
-    }
-    if (!formData.tipoEquipoId) {
-      newErrors.tipoEquipoId = 'El tipo de equipo es requerido';
-    }
-    if (!formData.numeroSerie.trim()) {
-      newErrors.numeroSerie = 'El número de serie es requerido';
-    }
+    if (!formData.nombre.trim()) newErrors.nombre = 'El nombre del modelo es requerido';
+    if (!formData.marcaId) newErrors.marcaId = 'La marca es requerida';
+    if (!formData.tipoEquipoId) newErrors.tipoEquipoId = 'El tipo de equipo es requerido';
+    if (!formData.numeroSerie.trim()) newErrors.numeroSerie = 'El número de serie es requerido';
 
-    // Validar URL si se proporciona
+    // Validación sintáctica de la URL de fichas técnicas para evitar rupturas de hipervínculos
     if (formData.enlaceFichaTecnica && formData.enlaceFichaTecnica.trim()) {
       try {
         new URL(formData.enlaceFichaTecnica);
@@ -96,52 +105,80 @@ export function ModeloModal({
     }
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return Object.keys(newErrors).length === 0; // Retorna true si el formulario está completamente limpio
   };
 
+  // Dispara el callback de guardado si las validaciones frontend concluyen con éxito
   const handleSave = () => {
     if (!validateForm()) {
       toast.error('Por favor, corrija los errores en el formulario');
       return;
     }
 
-    onSave(formData);
+    // 1. Buscamos los nombres correspondientes a los IDs seleccionados
+    const nombreMarca = marcasList.find(m => String((m as any).id_marca || m.id) === String(formData.marcaId))?.marcaNombre || 'Sin Marca';
+    const nombreTipo = tiposEquipo.find(t => String((t as any).id_tipo_equipo || t.id) === String(formData.tipoEquipoId))?.tipoNombre || 'Sin Tipo';
+
+    // 2. Pasamos el objeto estructurado con las propiedades requeridas por el tipo Modelo (Omit<Modelo, 'id'>)
+    onSave({
+      nombre: formData.nombre,
+      marcaId: formData.marcaId,
+      tipoEquipoId: formData.tipoEquipoId,
+      anoVersion: formData.anoVersion,
+      numeroSerie: formData.numeroSerie,
+      infoTecnica: formData.infoTecnica,
+      enlaceFichaTecnica: formData.enlaceFichaTecnica,
+      marcaNombre: nombreMarca,  // <-- Propiedad faltante añadida
+      tipoNombre: nombreTipo     // <-- Propiedad faltante añadida
+    });
+    
     toast.success(isCreating ? 'Modelo creado exitosamente' : 'Modelo actualizado exitosamente');
   };
 
+  // Gestiona de forma segura el identificador real a enviar al controlador DELETE del backend
   const handleDelete = () => {
     if (modelo) {
-      onDelete(modelo.id);
+      const idAEliminar = (modelo as any).id_modelo || modelo.id;
+      onDelete(idAEliminar);
       toast.success('Modelo eliminado exitosamente');
     }
   };
 
+  // Manejador del botón cancelar: revierte los cambios hechos y regresa a la vista lectura sin mutar estados externos
   const handleCancel = () => {
     if (isCreating) {
       onClose();
     } else {
       setMode('view');
       if (modelo) {
-        setFormData(modelo);
+        setFormData({
+          nombre: modelo.nombre || '',
+          marcaId: String((modelo as any).id_marca || modelo.marcaId || ''),
+          tipoEquipoId: String((modelo as any).id_tipo_equipo || modelo.tipoEquipoId || ''),
+          anoVersion: modelo.anoVersion || '',
+          numeroSerie: modelo.numeroSerie || '',
+          infoTecnica: modelo.infoTecnica || '',
+          enlaceFichaTecnica: modelo.enlaceFichaTecnica || '',
+        });
       }
       setErrors({});
     }
   };
 
-  // Busca la marca usando tu interfaz con 'marcaNombre'
-  const nombreMarcaAMostrar = 
-    (formData as any).marca_nombre || 
-    marcasList.find(m => String(m.id) === String(formData.marcaId))?.marcaNombre || 
-    'Sin Marca';
-
-  // Busca el tipo usando tu interfaz con 'tipoNombre'
-  const nombreTipoAMostrar = 
-    (formData as any).tipo_nombre || 
-    tiposEquipo.find(t => String(t.id) === String(formData.tipoEquipoId))?.tipoNombre || 
-    'Sin Tipo';
+  // ====================================================
+  // RESOLUCIÓN DE RELACIONES MAESTRAS (BÚSQUEDA CRUZADA)
+  // ====================================================
+  // Inspecciona de forma segura las listas usando tanto claves unificadas como crudas de PostgreSQL (id_marca / id)
+  const marcaSeleccionada = marcasList.find(
+    m => String((m as any).id_marca || m.id) === String(formData.marcaId)
+  );
+  const tipoSeleccionado = tiposEquipo.find(
+    t => String((t as any).id_tipo_equipo || t.id) === String(formData.tipoEquipoId)
+  );
 
   return (
     <>
+      {/* VENTANA DE DIÁLOGO PRINCIPAL (RADIX UI) */}
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -153,7 +190,9 @@ export function ModeloModal({
 
           <div className="space-y-4 py-4">
             {mode === 'view' ? (
-              // Vista de lectura
+              /* ====================================================
+                 SUB-RENDER 1: VISTA FICHA DE LECTURA DE DETALLES
+                 ==================================================== */
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="md:col-span-2">
@@ -162,11 +201,11 @@ export function ModeloModal({
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Marca</p>
-                    <p className="font-medium">{nombreMarcaAMostrar}</p>
+                    <p className="font-medium">{marcaSeleccionada?.marcaNombre || 'Sin Marca'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Tipo de Equipo</p>
-                    <p className="font-medium">{nombreTipoAMostrar}</p>
+                    <p className="font-medium">{tipoSeleccionado?.tipoNombre || 'Sin Tipo'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Año / Versión</p>
@@ -199,7 +238,9 @@ export function ModeloModal({
                 )}
               </div>
             ) : (
-              // Vista de edición
+              /* ====================================================
+                 SUB-RENDER 2: FORMULARIO ACTIVO (MODO EDICIÓN / ALTA)
+                 ==================================================== */
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="md:col-span-2">
@@ -214,31 +255,51 @@ export function ModeloModal({
                     {errors.nombre && <p className="text-xs text-red-500 mt-1">{errors.nombre}</p>}
                   </div>
 
+                  {/* SELECT DROPDOWN DE MARCAS MAESTRAS */}
                   <div>
                     <Label htmlFor="marcaId">Marca *</Label>
-                    <Select value={formData.marcaId} onValueChange={(value) => setFormData({ ...formData, marcaId: value })}>
+                    <Select 
+                      value={formData.marcaId} 
+                      onValueChange={(value) => setFormData({ ...formData, marcaId: value })}
+                    >
                       <SelectTrigger className={errors.marcaId ? 'border-red-500' : ''}>
                         <SelectValue placeholder="Seleccionar marca" />
                       </SelectTrigger>
                       <SelectContent>
-                        {marcasList.map(m => (
-                          <SelectItem key={m.id} value={m.id}>{m.marcaNombre}</SelectItem>
-                        ))}
+                        {marcasList.map(m => {
+                          // Sincronización estricta extraída de tu EquiposController (id_marca)
+                          const idMarcaReal = String((m as any).id_marca || m.id);
+                          return (
+                            <SelectItem key={idMarcaReal} value={idMarcaReal}>
+                              {m.marcaNombre}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                     {errors.marcaId && <p className="text-xs text-red-500 mt-1">{errors.marcaId}</p>}
                   </div>
 
+                  {/* SELECT DROPDOWN DE TIPOS DE EQUIPO MAESTROS */}
                   <div>
                     <Label htmlFor="tipoEquipoId">Tipo de Equipo *</Label>
-                    <Select value={formData.tipoEquipoId} onValueChange={(value) => setFormData({ ...formData, tipoEquipoId: value })}>
+                    <Select 
+                      value={formData.tipoEquipoId} 
+                      onValueChange={(value) => setFormData({ ...formData, tipoEquipoId: value })}
+                    >
                       <SelectTrigger className={errors.tipoEquipoId ? 'border-red-500' : ''}>
                         <SelectValue placeholder="Seleccionar tipo" />
                       </SelectTrigger>
                       <SelectContent>
-                        {tiposEquipo.map(t => (
-                          <SelectItem key={t.id} value={t.id}>{t.tipoNombre}</SelectItem>
-                        ))}
+                        {tiposEquipo.map(t => {
+                          // Sincronización estricta extraída de tu EquiposController (id_tipo_equipo)
+                          const idTipoReal = String((t as any).id_tipo_equipo || t.id);
+                          return (
+                            <SelectItem key={idTipoReal} value={idTipoReal}>
+                              {t.tipoNombre}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                     {errors.tipoEquipoId && <p className="text-xs text-red-500 mt-1">{errors.tipoEquipoId}</p>}
@@ -294,6 +355,7 @@ export function ModeloModal({
             )}
           </div>
 
+          {/* BOTONERA DINÁMICA DEL FOOTER DEL COMPONENTE */}
           <DialogFooter>
             {isAdmin && mode === 'view' ? (
               <>
@@ -326,7 +388,7 @@ export function ModeloModal({
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
+      {/* MODAL EMERGENTE SUBORDINADO: Cuadro secundario de confirmación de borrado */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>

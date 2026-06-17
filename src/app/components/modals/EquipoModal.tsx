@@ -160,6 +160,9 @@ export function EquipoModal({
   };
 
   const handleCreateModelo = () => {
+    const nombreMarca = marcasList.find(m => String((m as any).id_marca || m.id) === String(formData.marcaId))?.marcaNombre || 'Sin Marca';
+    const nombreTipo = tiposEquipo.find(t => String((t as any).id_tipo_equipo || t.id) === String(formData.tipoEquipoId))?.tipoNombre || 'Sin Tipo';
+
     const newModelo: Modelo = {
       id: Date.now().toString(),
       nombre: newModeloName,
@@ -169,7 +172,10 @@ export function EquipoModal({
       numeroSerie: '',
       infoTecnica: '',
       enlaceFichaTecnica: '',
+      marcaNombre: nombreMarca, 
+      tipoNombre: nombreTipo   
     };
+    
     onAddModelo(newModelo);
     setFormData(prev => ({ ...prev, modeloId: newModelo.id }));
     setModeloInput(newModelo.nombre);

@@ -4,6 +4,8 @@ import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Box, Search, Plus, Package, Wrench, Info } from 'lucide-react';
+
+// Importación de tipos e interfaces estructuradas del Frontend
 import {
   type Marca,
   type Modelo,
@@ -11,48 +13,64 @@ import {
   type Repuesto,
   type RepuestoModelo,
 } from '../data/mockData'; 
+
+// Importación de subcomponentes modales (Formularios y detalles)
 import { ModeloModal } from '../components/modals/ModeloModal';
-import { RepuestosModal } from '../components/modals/RepuestosModal'; // Importación del nuevo modal
+import { RepuestosModal } from '../components/modals/RepuestosModal';
+
+// Contexto global para validar permisos basados en roles de usuario (ej. Admin)
 import { useAuth } from '../context/AuthContext';
+
+// Importación de las funciones de comunicación asíncronas (Puente API)
 import { 
   getModelosApi, 
   saveModeloApi, 
   deleteModeloApi, 
-  asociarRepuestoApi,
-  getAllRepuestosModelosLinksApi // Asegúrate de exportarlo si se usa
+  getAllRepuestosModelosLinksApi 
 } from '../services/modelosApi';
 
 export function Modelos() {
-  const { isAdmin } = useAuth();
-  const [modelos, setModelos] = useState<Modelo[]>([]);
-  const [marcasList, setMarcasList] = useState<Marca[]>([]);
-  const [tiposEquipo, setTiposEquipo] = useState<TipoEquipo[]>([]);
-  
-  const [repuestosState, setRepuestosState] = useState<RepuestoModelo[]>([]);
-  const [listaRepuestosState, setListaRepuestosState] = useState<Repuesto[]>([]);
-  
-  const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  // ==========================================
+  // ESTADOS PRINCIPALES Y PERMISOS DE LA VISTA
+  // ==========================================
+  const { isAdmin } = useAuth(); // Extrae si el usuario tiene rol administrativo
+  const [modelos, setModelos] = useState<Modelo[]>([]); // Almacena el catálogo de modelos reales traídos de la BD
+  const [marcasList, setMarcasList] = useState<Marca[]>([]); // Lista de marcas para alimentar los filtros/modales
+  const [tiposEquipo, setTiposEquipo] = useState<TipoEquipo[]>([]); // Lista de tipos de equipos disponibles
 
-  const [selectedModelo, setSelectedModelo] = useState<Modelo | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
+  // Estados dedicados al puente interactivo con el catálogo e histórico de repuestos asociados
+  const [repuestosState, setRepuestosState] = useState<RepuestoModelo[]>([]); // Tabla relacional intermedia (Links)
+  const [listaRepuestosState, setListaRepuestosState] = useState<Repuesto[]>([]); // Catálogo maestro de repuestos
 
-  const [repuestosModelo, setRepuestosModelo] = useState<Modelo | null>(null);
-  const [isRepuestosModalOpen, setIsRepuestosModalOpen] = useState(false);
+  // Estados de control de UI y carga reactiva
+  const [searchQuery, setSearchQuery] = useState(''); // Guarda la cadena de texto del cuadro de búsqueda global
+  const [loading, setLoading] = useState(true); // Controla el renderizado de la pantalla de carga
+  const [error, setError] = useState(''); // Captura mensajes de error en peticiones HTTP
 
+  // Estados del Modal de Gestión de Modelos (Crear / Ver / Editar)
+  const [selectedModelo, setSelectedModelo] = useState<Modelo | null>(null); // Modelo seleccionado para inspección o edición
+  const [isModalOpen, setIsModalOpen] = useState(false); // Flag de apertura/cierre del modal principal
+  const [isCreating, setIsCreating] = useState(false); // Flag para indicarle al modal si debe abrirse en modo inserción vacía
+
+  // Estados del Modal Secundario de Repuestos (Asociados al modelo)
+  const [repuestosModelo, setRepuestosModelo] = useState<Modelo | null>(null); // Rastrea de qué modelo estamos inspeccionando repuestos
+  const [isRepuestosModalOpen, setIsRepuestosModalOpen] = useState(false); // Flag de apertura del modal de repuestos
+
+  // ==========================================
+  // EFECTO DE CARGA INICIAL (PUENTE BACKEND)
+  // ==========================================
   useEffect(() => {
     async function loadData() {
       try {
         setLoading(true);
         
-        // Solo llamamos a las dos cosas que realmente maneja este módulo
+        // Ejecución en paralelo de las consultas iniciales para mitigar tiempos de respuesta
         const [modelosData, linksData] = await Promise.all([
           getModelosApi(),
-          getAllRepuestosModelosLinksApi().catch(() => []), 
+          getAllRepuestosModelosLinksApi().catch(() => []), // Captura preventiva por si la tabla relacional está vacía
         ]);
 
+        // Seteo en los estados reactivos de la aplicación
         setModelos(modelosData);
         setRepuestosState(linksData);
 
@@ -60,13 +78,18 @@ export function Modelos() {
         console.error(err);
         setError('No se pudieron cargar los datos de modelos.');
       } finally {
-        setLoading(false);
+        setLoading(false); // Apaga el spinner o indicador visual de carga
       }
     }
 
     loadData();
   }, []);
 
+  // ==========================================
+  // COMPUTACIONES FILTRADAS Y OPTIMIZADAS
+  // ==========================================
+  
+  // FILTRO 1: Buscador en tiempo real por concordancia de texto
   const filteredModelos = useMemo(() => {
     if (!searchQuery) return modelos;
 
@@ -75,82 +98,106 @@ export function Modelos() {
       return (
         modelo.nombre.toLowerCase().includes(query) ||
         modelo.anoVersion.toLowerCase().includes(query) ||
-        modelo.numeroSerie.toLowerCase().includes(query)
+        modelo.numeroSerie.toLowerCase().includes(query) ||
+        (modelo as any).marcaNombre?.toLowerCase().includes(query) || // Búsqueda sobre el alias de la marca
+        (modelo as any).tipoNombre?.toLowerCase().includes(query)     // Búsqueda sobre el alias del tipo de equipo
       );
     });
   }, [modelos, searchQuery]);
 
+  // FILTRO 2: Agrupación matricial bidimensional (Tipo de Equipo -> Marcas -> Modelos[])
   const groupedModelos = useMemo(() => {
     const groups: Record<string, Record<string, Modelo[]>> = {};
 
     filteredModelos.forEach(modelo => {
+      // Usamos los alias inyectados por los JOINs del controlador de la base de datos
       const tipoNombre = (modelo as any).tipoNombre || 'Sin Tipo';
       const marcaNombre = (modelo as any).marcaNombre || 'Sin Marca';
 
+      // Inicialización estructurada del árbol de claves del objeto si no existen
       if (!groups[tipoNombre]) {
         groups[tipoNombre] = {};
       }
       if (!groups[tipoNombre][marcaNombre]) {
         groups[tipoNombre][marcaNombre] = [];
       }
+      // Inserción del modelo dentro de su hoja correspondiente
       groups[tipoNombre][marcaNombre].push(modelo);
     });
 
     return groups;
   }, [filteredModelos]);
 
-  // Manejadores de modales corregidos
+  // ==========================================
+  // MANEJADORES DE EVENTOS DE INTERFAZ (UI)
+  // ==========================================
+  
+  // Abre el modal para visualizar los detalles técnicos de un modelo existente
   const handleOpenModeloModal = (modelo: Modelo) => {
     setSelectedModelo(modelo);
     setIsCreating(false);
     setIsModalOpen(true);
   };
 
+  // Abre el modal dedicado a revisar y enlazar repuestos al modelo clickeado
   const handleOpenRepuestosModal = (modelo: Modelo) => {
     setRepuestosModelo(modelo);
     setIsRepuestosModalOpen(true);
   };
 
+  // Prepara el formulario del modal en blanco para el registro de una entidad nueva
   const handleCreateModelo = () => {
     setSelectedModelo(null);
     setIsCreating(true);
     setIsModalOpen(true);
   };
 
-  // Todo esto eventualmente escalará a llamadas fetch/axios hacia tu modelosController
+  // ==========================================
+  // PROCESAMIENTO LOCAL DE FORMULARIOS (PROPS)
+  // ==========================================
+  
+  // Guarda cambios de edición o creación (Mutación temporal hasta enganchar fetch directo)
   const handleSaveModelo = (modeloData: Omit<Modelo, 'id'>) => {
     if (selectedModelo) {
+      // Caso Edición: Mapea sobre el arreglo para reemplazar el objeto modificado
       setModelos(prev =>
         prev.map(m => (m.id === selectedModelo.id ? { ...m, ...modeloData } : m))
       );
     } else {
+      // Caso Creación: Inserta al principio con una ID temporal autogenerada
       const newModelo: Modelo = {
         ...modeloData,
         id: Date.now().toString(),
       };
       setModelos(prev => [newModelo, ...prev]);
     }
-    setIsModalOpen(false);
+    setIsModalOpen(false); // Cierre exitoso del cuadro de diálogo
   };
 
+  // Remueve un modelo del estado local al confirmar su eliminación
   const handleDeleteModelo = (id: string) => {
     setModelos(prev => prev.filter(m => m.id !== id));
     setIsModalOpen(false);
   };
 
-  // Manejadores interactivos para el modal de repuestos asociados
+  // Agrega una nueva relación intermedia entre un repuesto existente y el modelo activo
   const handleAddRepuesto = (newLink: RepuestoModelo) => {
     setRepuestosState(prev => [...prev, newLink]);
   };
 
+  // Inserción simultánea: registra un repuesto inédito en el catálogo y crea su enlace con el modelo
   const handleAddNewRepuesto = (newRepuesto: Repuesto, newLink: RepuestoModelo) => {
     setListaRepuestosState(prev => [...prev, newRepuesto]);
     setRepuestosState(prev => [...prev, newLink]);
   };
 
+  // Helper dinámico para renderizar el contador numérico de repuestos en las tarjetas
   const getRepuestosCount = (modeloId: string) =>
     repuestosState.filter(rm => rm.modeloId === modeloId).length;
 
+  // ==========================================
+  // RENDERIZADO DE ALERTAS / PANTALLAS DE CONTROL
+  // ==========================================
   if (loading) {
     return <div className="py-10 text-center text-gray-600">Cargando modelos...</div>;
   }
@@ -161,7 +208,7 @@ export function Modelos() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* SECCIÓN DEL HEADER: Título principal de la página y botón de creación */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-3xl font-bold text-gray-900">Modelos</h2>
@@ -180,7 +227,7 @@ export function Modelos() {
         )}
       </div>
 
-      {/* Search Bar */}
+      {/* CUADRO DE BÚSQUEDA GLOBAL */}
       <Card>
         <CardContent className="pt-6">
           <div className="relative">
@@ -196,7 +243,7 @@ export function Modelos() {
         </CardContent>
       </Card>
 
-      {/* Listado de Modelos */}
+      {/* RENDERIZADO CONDICIONAL: Mensaje vacío u objetos agrupados mapeados */}
       {Object.keys(groupedModelos).length === 0 ? (
         <Card>
           <CardContent className="pt-12 pb-12 text-center">
@@ -209,6 +256,7 @@ export function Modelos() {
         </Card>
       ) : (
         <div className="space-y-6">
+          {/* PRIMER NIVEL DE ITERACIÓN: Separación por Tipo de Equipo */}
           {Object.entries(groupedModelos).map(([tipoNombre, marcasGroup]) => (
             <Card key={tipoNombre}>
               <CardHeader className="bg-gradient-to-r from-green-500/5 to-transparent">
@@ -222,6 +270,7 @@ export function Modelos() {
               </CardHeader>
               <CardContent className="pt-6">
                 <div className="space-y-6">
+                  {/* SEGUNDO NIVEL DE ITERACIÓN: Separación interna por Marcas */}
                   {Object.entries(marcasGroup).map(([marcaNombre, modelosArray]) => (
                     <div key={marcaNombre}>
                       <div className="flex items-center gap-2 mb-3">
@@ -229,6 +278,7 @@ export function Modelos() {
                         <Badge className="bg-[#0066CC] hover:bg-[#0052A3]">{modelosArray.length}</Badge>
                       </div>
 
+                      {/* TERCER NIVEL: Malla (Grid) de Tarjetas Individuales de los Modelos */}
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                         {modelosArray.map(modelo => {
                           const repCount = getRepuestosCount(modelo.id);
@@ -255,7 +305,7 @@ export function Modelos() {
                                   <p className="text-xs text-gray-500 mb-2 line-clamp-2">{modelo.infoTecnica}</p>
                                 )}
 
-                                {/* Botones de Acción Unificados de Figma */}
+                                {/* BOTONES DE ACCIÓN: Vinculación a modales secundarios */}
                                 <div className="flex gap-2 pt-2 border-t border-gray-100 mt-1">
                                   <Button
                                     size="sm"
@@ -295,7 +345,7 @@ export function Modelos() {
         </div>
       )}
 
-      {/* Modelo Detail Modal */}
+      {/* COMPONENTE INYECTADO: Modal de edición/lectura de datos técnicos del Modelo */}
       <ModeloModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -308,7 +358,7 @@ export function Modelos() {
         tiposEquipo={tiposEquipo}
       />
 
-      {/* Repuestos Modal */}
+      {/* COMPONENTE INYECTADO: Modal de catálogo de repuestos asociados */}
       <RepuestosModal
         isOpen={isRepuestosModalOpen}
         onClose={() => setIsRepuestosModalOpen(false)}
