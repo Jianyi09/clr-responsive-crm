@@ -1,27 +1,23 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Box, Edit, Trash2, X, Save, Link as LinkIcon } from 'lucide-react';
+import { Box, Edit, Trash2, X, Save, Link as LinkIcon, ChevronDown } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { type Marca, type Modelo, type TipoEquipo } from '../../data/mockData';
-import { toast } from 'sonner';
 
-// Definición de propiedades estrictas que el componente padre debe inyectar
 interface ModeloModalProps {
-  isOpen: boolean; // Flag que controla la visibilidad física del cuadro de diálogo
-  onClose: () => void; // Función callback para abortar y cerrar el modal
-  modelo: Modelo | null; // El objeto con los datos del modelo activo (null si es nuevo)
-  isCreating: boolean; // Flag para forzar comportamiento de formulario vacío
-  onSave: (modeloData: Omit<Modelo, 'id'>) => void; // Callback del canal de persistencia
-  onDelete: (id: string) => void; // Callback para disparar eventos DELETE
-  allModelos: Modelo[]; // Listado total de modelos (útil para auditoría o validaciones cruzadas)
-  marcasList: Marca[]; // Colección maestro traída de la tabla "Marcas_Equipos"
-  tiposEquipo: TipoEquipo[]; // Colección maestro traída de la tabla "Tipos_Equipos"
+  isOpen: boolean;
+  onClose: () => void;
+  modelo: Modelo | null;
+  isCreating: boolean;
+  onSave: (modeloData: Omit<Modelo, 'id'>) => void;
+  onDelete: (id: string) => void;
+  marcasList: Marca[];
+  tiposEquipo: TipoEquipo[];
 }
 
 export function ModeloModal({
@@ -31,15 +27,13 @@ export function ModeloModal({
   isCreating,
   onSave,
   onDelete,
-  allModelos,
   marcasList,
   tiposEquipo,
 }: ModeloModalProps) {
-  const { isAdmin } = useAuth(); // Valida permisos del rol para ocultar/mostrar botones CRUD
-  const [mode, setMode] = useState<'view' | 'edit'>('view'); // Controla si renderiza etiquetas de lectura o inputs de formulario
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false); // Bandera para activar la ventana de confirmación destructiva
+  const { isAdmin } = useAuth();
+  const [mode, setMode] = useState<'view' | 'edit'>('view');
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
-  // Estructura interna del formulario que emula exactamente las columnas de la tabla base "Modelos_Equipos"
   const [formData, setFormData] = useState({
     nombre: '',
     marcaId: '',
@@ -50,14 +44,21 @@ export function ModeloModal({
     enlaceFichaTecnica: '',
   });
 
-  const [errors, setErrors] = useState<Record<string, string>>({}); // Almacena mensajes de validación por campo
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // ====================================================
-  // EFECTO SENSE: Sincroniza el formulario al abrir/cambiar entidad
-  // ====================================================
+  // Estados de control para los dropdowns estilo Shadcn/Radix
+  const [showMarcaDropdown, setShowMarcaDropdown] = useState(false);
+  const [showTipoDropdown, setShowTipoDropdown] = useState(false);
+  const [marcaInput, setMarcaInput] = useState('');
+  const [tipoInput, setTipoInput] = useState('');
+
+  // Referencias para cerrar al hacer clic fuera
+  const marcaRef = useRef<HTMLDivElement>(null);
+  const tipoRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (isCreating) {
-      setMode('edit'); // Fuerza el formulario editable si el usuario desea registrar un modelo nuevo
+      setMode('edit');
       setFormData({
         nombre: '',
         marcaId: '',
@@ -67,26 +68,49 @@ export function ModeloModal({
         infoTecnica: '',
         enlaceFichaTecnica: '',
       });
+      setMarcaInput('');
+      setTipoInput('');
       setErrors({});
     } else if (modelo) {
-      setMode('view'); // Por defecto, si el modelo existe, abre en formato de ficha de lectura limpia
+      setMode('view');
+      
+      const mId = String((modelo as any).id_marca || modelo.marcaId || '');
+      const tId = String((modelo as any).id_tipo_equipo || modelo.tipoEquipoId || '');
+
       setFormData({
         nombre: modelo.nombre || '',
-        // COMPORTAMIENTO PUENTE: Tolera tanto los alias tipados de JS (marcaId) como los crudos de la BD (id_marca)
-        marcaId: String((modelo as any).id_marca || modelo.marcaId || ''),
-        tipoEquipoId: String((modelo as any).id_tipo_equipo || modelo.tipoEquipoId || ''),
+        marcaId: mId,
+        tipoEquipoId: tId,
         anoVersion: modelo.anoVersion || '',
         numeroSerie: modelo.numeroSerie || '',
         infoTecnica: modelo.infoTecnica || '',
         enlaceFichaTecnica: modelo.enlaceFichaTecnica || '',
       });
+
+      const marcaEncontrada = marcasList.find(m => String((m as any).id_marca || m.id) === mId);
+      const tipoEncontrado = tiposEquipo.find(t => String((t as any).id_tipo_equipo || t.id) === tId);
+
+      setMarcaInput(marcaEncontrada?.marcaNombre || modelo.marcaNombre || '');
+      setTipoInput(tipoEncontrado?.tipoNombre || modelo.tipoNombre || '');
       setErrors({});
     }
-  }, [modelo, isCreating, isOpen]);
+  }, [modelo, isCreating, isOpen, marcasList, tiposEquipo]);
 
-  // ====================================================
-  // VALIDACIONES DE INTEGRIDAD DE DATOS (FRONTEND)
-  // ====================================================
+  // Manejador global para cerrar dropdowns al hacer clic fuera de sus contenedores
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (marcaRef.current && !marcaRef.current.contains(event.target as Node)) {
+        setShowMarcaDropdown(false);
+      }
+      if (tipoRef.current && !tipoRef.current.contains(event.target as Node)) {
+        setShowTipoDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
@@ -95,7 +119,6 @@ export function ModeloModal({
     if (!formData.tipoEquipoId) newErrors.tipoEquipoId = 'El tipo de equipo es requerido';
     if (!formData.numeroSerie.trim()) newErrors.numeroSerie = 'El número de serie es requerido';
 
-    // Validación sintáctica de la URL de fichas técnicas para evitar rupturas de hipervínculos
     if (formData.enlaceFichaTecnica && formData.enlaceFichaTecnica.trim()) {
       try {
         new URL(formData.enlaceFichaTecnica);
@@ -105,21 +128,15 @@ export function ModeloModal({
     }
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0; // Retorna true si el formulario está completamente limpio
+    return Object.keys(newErrors).length === 0;
   };
 
-  // Dispara el callback de guardado si las validaciones frontend concluyen con éxito
   const handleSave = () => {
-    if (!validateForm()) {
-      toast.error('Por favor, corrija los errores en el formulario');
-      return;
-    }
+    if (!validateForm()) return;
 
-    // 1. Buscamos los nombres correspondientes a los IDs seleccionados
-    const nombreMarca = marcasList.find(m => String((m as any).id_marca || m.id) === String(formData.marcaId))?.marcaNombre || 'Sin Marca';
-    const nombreTipo = tiposEquipo.find(t => String((t as any).id_tipo_equipo || t.id) === String(formData.tipoEquipoId))?.tipoNombre || 'Sin Tipo';
+    const nombreMarca = marcasList.find(m => String((m as any).id_marca || m.id) === String(formData.marcaId))?.marcaNombre || marcaInput;
+    const nombreTipo = tiposEquipo.find(t => String((t as any).id_tipo_equipo || t.id) === String(formData.tipoEquipoId))?.tipoNombre || tipoInput;
 
-    // 2. Pasamos el objeto estructurado con las propiedades requeridas por el tipo Modelo (Omit<Modelo, 'id'>)
     onSave({
       nombre: formData.nombre,
       marcaId: formData.marcaId,
@@ -128,59 +145,57 @@ export function ModeloModal({
       numeroSerie: formData.numeroSerie,
       infoTecnica: formData.infoTecnica,
       enlaceFichaTecnica: formData.enlaceFichaTecnica,
-      marcaNombre: nombreMarca,  // <-- Propiedad faltante añadida
-      tipoNombre: nombreTipo     // <-- Propiedad faltante añadida
+      marcaNombre: nombreMarca,
+      tipoNombre: nombreTipo
     });
-    
-    toast.success(isCreating ? 'Modelo creado exitosamente' : 'Modelo actualizado exitosamente');
   };
 
-  // Gestiona de forma segura el identificador real a enviar al controlador DELETE del backend
   const handleDelete = () => {
     if (modelo) {
-      const idAEliminar = (modelo as any).id_modelo || modelo.id;
+      const idAEliminar = modelo.id || (modelo as any).id_modelo;
       onDelete(idAEliminar);
-      toast.success('Modelo eliminado exitosamente');
     }
   };
 
-  // Manejador del botón cancelar: revierte los cambios hechos y regresa a la vista lectura sin mutar estados externos
   const handleCancel = () => {
     if (isCreating) {
       onClose();
     } else {
       setMode('view');
       if (modelo) {
+        const mId = String((modelo as any).id_marca || modelo.marcaId || '');
+        const tId = String((modelo as any).id_tipo_equipo || modelo.tipoEquipoId || '');
         setFormData({
           nombre: modelo.nombre || '',
-          marcaId: String((modelo as any).id_marca || modelo.marcaId || ''),
-          tipoEquipoId: String((modelo as any).id_tipo_equipo || modelo.tipoEquipoId || ''),
+          marcaId: mId,
+          tipoEquipoId: tId,
           anoVersion: modelo.anoVersion || '',
           numeroSerie: modelo.numeroSerie || '',
           infoTecnica: modelo.infoTecnica || '',
           enlaceFichaTecnica: modelo.enlaceFichaTecnica || '',
         });
+        const marcaEncontrada = marcasList.find(m => String((m as any).id_marca || m.id) === mId);
+        const tipoEncontrado = tiposEquipo.find(t => String((t as any).id_tipo_equipo || t.id) === tId);
+        setMarcaInput(marcaEncontrada?.marcaNombre || modelo.marcaNombre || '');
+        setTipoInput(tipoEncontrado?.tipoNombre || modelo.tipoNombre || '');
       }
       setErrors({});
     }
   };
 
-  // ====================================================
-  // RESOLUCIÓN DE RELACIONES MAESTRAS (BÚSQUEDA CRUZADA)
-  // ====================================================
-  // Inspecciona de forma segura las listas usando tanto claves unificadas como crudas de PostgreSQL (id_marca / id)
-  const marcaSeleccionada = marcasList.find(
-    m => String((m as any).id_marca || m.id) === String(formData.marcaId)
+  const filteredMarcas = marcasList.filter(m =>
+    m.marcaNombre.toLowerCase().includes(marcaInput.toLowerCase())
   );
-  const tipoSeleccionado = tiposEquipo.find(
-    t => String((t as any).id_tipo_equipo || t.id) === String(formData.tipoEquipoId)
+
+  const filteredTipos = tiposEquipo.filter(t =>
+    t.tipoNombre.toLowerCase().includes(tipoInput.toLowerCase())
   );
 
   return (
     <>
-      {/* VENTANA DE DIÁLOGO PRINCIPAL (RADIX UI) */}
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        {/* Agregamos overflow-visible al contenedor para permitir que los dropdowns floten libremente */}
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-visible">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Box className="w-5 h-5 text-green-600" />
@@ -188,11 +203,8 @@ export function ModeloModal({
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 overflow-visible">
             {mode === 'view' ? (
-              /* ====================================================
-                 SUB-RENDER 1: VISTA FICHA DE LECTURA DE DETALLES
-                 ==================================================== */
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="md:col-span-2">
@@ -201,11 +213,11 @@ export function ModeloModal({
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Marca</p>
-                    <p className="font-medium">{marcaSeleccionada?.marcaNombre || 'Sin Marca'}</p>
+                    <p className="font-medium">{marcaInput || 'Sin Marca'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Tipo de Equipo</p>
-                    <p className="font-medium">{tipoSeleccionado?.tipoNombre || 'Sin Tipo'}</p>
+                    <p className="font-medium">{tipoInput || 'Sin Tipo'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Año / Versión</p>
@@ -238,11 +250,8 @@ export function ModeloModal({
                 )}
               </div>
             ) : (
-              /* ====================================================
-                 SUB-RENDER 2: FORMULARIO ACTIVO (MODO EDICIÓN / ALTA)
-                 ==================================================== */
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-4 overflow-visible">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-visible">
                   <div className="md:col-span-2">
                     <Label htmlFor="nombre">Nombre del Modelo *</Label>
                     <Input
@@ -255,53 +264,99 @@ export function ModeloModal({
                     {errors.nombre && <p className="text-xs text-red-500 mt-1">{errors.nombre}</p>}
                   </div>
 
-                  {/* SELECT DROPDOWN DE MARCAS MAESTRAS */}
-                  <div>
-                    <Label htmlFor="marcaId">Marca *</Label>
-                    <Select 
-                      value={formData.marcaId} 
-                      onValueChange={(value) => setFormData({ ...formData, marcaId: value })}
-                    >
-                      <SelectTrigger className={errors.marcaId ? 'border-red-500' : ''}>
-                        <SelectValue placeholder="Seleccionar marca" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {marcasList.map(m => {
-                          // Sincronización estricta extraída de tu EquiposController (id_marca)
-                          const idMarcaReal = String((m as any).id_marca || m.id);
-                          return (
-                            <SelectItem key={idMarcaReal} value={idMarcaReal}>
-                              {m.marcaNombre}
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
+                  {/* SELECTOR PROFESIONAL DE MARCAS */}
+                  <div className="relative" ref={marcaRef}>
+                    <Label htmlFor="marca">Marca *</Label>
+                    <div className="relative flex items-center">
+                      <Input
+                        id="marca"
+                        value={marcaInput}
+                        onChange={(e) => {
+                          setMarcaInput(e.target.value);
+                          setFormData(prev => ({ ...prev, marcaId: '' }));
+                          setShowMarcaDropdown(true);
+                        }}
+                        onFocus={() => {
+                          setShowMarcaDropdown(true);
+                          setShowTipoDropdown(false);
+                        }}
+                        placeholder="Escriba o seleccione"
+                        className={errors.marcaId ? 'border-red-500 pr-8 bg-gray-50/50' : 'pr-8 bg-gray-50/50'}
+                      />
+                      <ChevronDown className="absolute right-2.5 w-4 h-4 text-gray-400 pointer-events-none" />
+                    </div>
+                    {showMarcaDropdown && (
+                      <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto py-1 animate-in fade-in-50 slide-in-from-top-1 duration-200">
+                        {filteredMarcas.length > 0 ? (
+                          filteredMarcas.map(m => {
+                            const idReal = String((m as any).id_marca || m.id);
+                            return (
+                              <div
+                                key={idReal}
+                                className="px-3 py-2.5 cursor-pointer hover:bg-gray-100 text-sm font-normal text-gray-900 transition-colors"
+                                onClick={() => {
+                                  setMarcaInput(m.marcaNombre);
+                                  setFormData(prev => ({ ...prev, marcaId: idReal }));
+                                  setShowMarcaDropdown(false);
+                                }}
+                              >
+                                {m.marcaNombre}
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="px-3 py-2.5 text-sm text-gray-400 italic text-center">No se encontraron resultados</div>
+                        )}
+                      </div>
+                    )}
                     {errors.marcaId && <p className="text-xs text-red-500 mt-1">{errors.marcaId}</p>}
                   </div>
 
-                  {/* SELECT DROPDOWN DE TIPOS DE EQUIPO MAESTROS */}
-                  <div>
-                    <Label htmlFor="tipoEquipoId">Tipo de Equipo *</Label>
-                    <Select 
-                      value={formData.tipoEquipoId} 
-                      onValueChange={(value) => setFormData({ ...formData, tipoEquipoId: value })}
-                    >
-                      <SelectTrigger className={errors.tipoEquipoId ? 'border-red-500' : ''}>
-                        <SelectValue placeholder="Seleccionar tipo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {tiposEquipo.map(t => {
-                          // Sincronización estricta extraída de tu EquiposController (id_tipo_equipo)
-                          const idTipoReal = String((t as any).id_tipo_equipo || t.id);
-                          return (
-                            <SelectItem key={idTipoReal} value={idTipoReal}>
-                              {t.tipoNombre}
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
+                  {/* SELECTOR PROFESIONAL DE TIPOS DE EQUIPO */}
+                  <div className="relative" ref={tipoRef}>
+                    <Label htmlFor="tipoEquipo">Tipo de Equipo *</Label>
+                    <div className="relative flex items-center">
+                      <Input
+                        id="tipoEquipo"
+                        value={tipoInput}
+                        onChange={(e) => {
+                          setTipoInput(e.target.value);
+                          setFormData(prev => ({ ...prev, tipoEquipoId: '' }));
+                          setShowTipoDropdown(true);
+                        }}
+                        onFocus={() => {
+                          setShowTipoDropdown(true);
+                          setShowMarcaDropdown(false);
+                        }}
+                        placeholder="Escriba o seleccione"
+                        className={errors.tipoEquipoId ? 'border-red-500 pr-8 bg-gray-50/50' : 'pr-8 bg-gray-50/50'}
+                      />
+                      <ChevronDown className="absolute right-2.5 w-4 h-4 text-gray-400 pointer-events-none" />
+                    </div>
+                    {showTipoDropdown && (
+                      <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto py-1 animate-in fade-in-50 slide-in-from-top-1 duration-200">
+                        {filteredTipos.length > 0 ? (
+                          filteredTipos.map(t => {
+                            const idReal = String((t as any).id_tipo_equipo || t.id);
+                            return (
+                              <div
+                                key={idReal}
+                                className="px-3 py-2.5 cursor-pointer hover:bg-gray-100 text-sm font-normal text-gray-900 transition-colors"
+                                onClick={() => {
+                                  setTipoInput(t.tipoNombre);
+                                  setFormData(prev => ({ ...prev, tipoEquipoId: idReal }));
+                                  setShowTipoDropdown(false);
+                                }}
+                              >
+                                {t.tipoNombre}
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="px-3 py-2.5 text-sm text-gray-400 italic text-center">No se encontraron resultados</div>
+                        )}
+                      </div>
+                    )}
                     {errors.tipoEquipoId && <p className="text-xs text-red-500 mt-1">{errors.tipoEquipoId}</p>}
                   </div>
 
@@ -355,7 +410,6 @@ export function ModeloModal({
             )}
           </div>
 
-          {/* BOTONERA DINÁMICA DEL FOOTER DEL COMPONENTE */}
           <DialogFooter>
             {isAdmin && mode === 'view' ? (
               <>
@@ -388,7 +442,6 @@ export function ModeloModal({
         </DialogContent>
       </Dialog>
 
-      {/* MODAL EMERGENTE SUBORDINADO: Cuadro secundario de confirmación de borrado */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>

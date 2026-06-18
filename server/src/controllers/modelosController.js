@@ -31,17 +31,27 @@ export async function getAllModelos(req, res) {
   }
 }
 
-// 2. CREAR MODELO
-// Endpoint: POST /api/modelos
+// ==========================================
+// 2. CREAR MODELO (CORREGIDO)
+// ==========================================
 export async function createModelo(req, res) {
+  // Cambiamos "modelo" por "nombre" para alinearlo al frontend
+  const { 
+    nombre, marcaId, tipoEquipoId, anoVersion, numeroSerie, infoTecnica, enlaceFichaTecnica 
+  } = req.body;
+
   try {
-    const { nombre, marcaId, tipoEquipoId, anoVersion, numeroSerie, infoTecnica, enlaceFichaTecnica } = req.body;
-    const query = `
-      INSERT INTO "Modelos_Equipos" (modelo, id_marca, id_tipo_equipo, year, "Serie", inf_tecnica, link_fich_tecn)
-      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
+    const insertQuery = `
+      INSERT INTO "Modelos_Equipos" (
+        id_marca, id_tipo_equipo, modelo, 
+        year, "Serie", inf_tecnica, link_fich_tecn
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING id_modelo;
     `;
     const db = req.db || pool;
-    const { rows } = await db.query(query, [nombre, marcaId, tipoEquipoId, anoVersion, numeroSerie, infoTecnica, enlaceFichaTecnica]);
+    // Pasamos 'nombre' en la tercera posición ($3 -> modelo)
+    const { rows } = await db.query(insertQuery, [marcaId, tipoEquipoId, nombre, anoVersion, numeroSerie, infoTecnica, enlaceFichaTecnica]);
     res.status(201).json(rows[0]);
   } catch (error) {
     console.error('Error al crear el modelo:', error);
@@ -49,12 +59,14 @@ export async function createModelo(req, res) {
   }
 }
 
-// 3. ACTUALIZAR MODELO
-// Endpoint: PUT /api/modelos/:id
+// ==========================================
+// 3. ACTUALIZAR MODELO (VERIFICADO)
+// ==========================================
 export async function updateModelo(req, res) {
   try {
     const { id } = req.params;
     const { nombre, marcaId, tipoEquipoId, anoVersion, numeroSerie, infoTecnica, enlaceFichaTecnica } = req.body;
+    
     const query = `
       UPDATE "Modelos_Equipos" 
       SET modelo = $1, id_marca = $2, id_tipo_equipo = $3, year = $4, "Serie" = $5, inf_tecnica = $6, link_fich_tecn = $7

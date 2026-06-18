@@ -157,28 +157,52 @@ export function Modelos() {
   // ==========================================
   
   // Guarda cambios de edición o creación (Mutación temporal hasta enganchar fetch directo)
-  const handleSaveModelo = (modeloData: Omit<Modelo, 'id'>) => {
+  const handleSaveModelo = async (modeloData: Omit<Modelo, 'id'>) => {
+  try {
+    setLoading(true); // Encendemos indicador de carga temporal
+
     if (selectedModelo) {
-      // Caso Edición: Mapea sobre el arreglo para reemplazar el objeto modificado
+      // --- CASO EDICIÓN (PUT) ---
+      const modeloActualizado = await saveModeloApi(modeloData, selectedModelo.id);
+      
       setModelos(prev =>
-        prev.map(m => (m.id === selectedModelo.id ? { ...m, ...modeloData } : m))
+        prev.map(m => (m.id === selectedModelo.id ? { ...m, ...modeloActualizado } : m))
       );
     } else {
-      // Caso Creación: Inserta al principio con una ID temporal autogenerada
-      const newModelo: Modelo = {
-        ...modeloData,
-        id: Date.now().toString(),
-      };
-      setModelos(prev => [newModelo, ...prev]);
+      // --- CASO CREACIÓN (POST) ---
+      const nuevoModelo = await saveModeloApi(modeloData);
+      
+      // Lo agregamos al inicio de la lista con su ID real de la base de datos
+      setModelos(prev => [nuevoModelo, ...prev]);
     }
+    
     setIsModalOpen(false); // Cierre exitoso del cuadro de diálogo
-  };
+  } catch (err: any) {
+    console.error(err);
+    setError(err.message || 'Error al intentar guardar el modelo.');
+  } finally {
+    setLoading(false);
+  }
+};
 
-  // Remueve un modelo del estado local al confirmar su eliminación
-  const handleDeleteModelo = (id: string) => {
+// Remueve un modelo de la base de datos y actualiza el estado local
+const handleDeleteModelo = async (id: string) => {
+  try {
+    setLoading(true);
+    
+    // Llamada física al endpoint DELETE /api/modelos/:id
+    await deleteModeloApi(id);
+    
+    // Si el servidor responde OK, lo quitamos de la UI
     setModelos(prev => prev.filter(m => m.id !== id));
     setIsModalOpen(false);
-  };
+  } catch (err: any) {
+    console.error(err);
+    setError(err.message || 'No se pudo eliminar el modelo del servidor.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Agrega una nueva relación intermedia entre un repuesto existente y el modelo activo
   const handleAddRepuesto = (newLink: RepuestoModelo) => {
@@ -353,7 +377,6 @@ export function Modelos() {
         isCreating={isCreating}
         onSave={handleSaveModelo}
         onDelete={handleDeleteModelo}
-        allModelos={modelos}
         marcasList={marcasList}
         tiposEquipo={tiposEquipo}
       />
