@@ -5,7 +5,7 @@ const router = express.Router();
 
 // 1. OBTENER TODOS LOS MODELOS
 // Endpoint: GET /api/modelos
-router.get('/', getAllModelos);
+router.get('/dashboard', getAllModelos);
 
 // 2. CREAR MODELO
 // Endpoint: POST /api/modelos

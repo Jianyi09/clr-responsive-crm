@@ -1,4 +1,10 @@
-import { Modelo, Repuesto, RepuestoModelo } from '../data/mockData';
+import { Modelo, Marca, Repuesto, RepuestoModelo, TipoEquipo } from '../data/mockData';
+
+export interface ModelosDashboard {
+  marcas: Marca[];
+  tiposEquipo: TipoEquipo[];
+  modelos: Modelo[];
+}
 
 const API_BASE_URL = 'http://localhost:4000';
 
@@ -6,8 +12,8 @@ const API_BASE_URL = 'http://localhost:4000';
  * 1. OBTENER TODOS LOS MODELOS (GET /api/modelos)
  * Conectado con: modelosController.getAllModelos
  */
-export async function getModelosApi(): Promise<Modelo[]> {
-  const response = await fetch(`${API_BASE_URL}/api/modelos`);
+export async function getModelosApi(): Promise<ModelosDashboard> {
+  const response = await fetch(`${API_BASE_URL}/api/modelos/dashboard`);
   
   if (!response.ok) {
     const errData = await response.json().catch(() => ({}));
@@ -16,19 +22,26 @@ export async function getModelosApi(): Promise<Modelo[]> {
   
   const data = await response.json();
 
-  // MAPEÓ CRUCIAL: Pasamos los alias que configuramos en el controlador al Front
-  return data.map((m: any) => ({
-    id: String(m.id_modelo || m.id),
-    nombre: m.nombre || '',
-    anoVersion: m.anoVersion || '',
-    numeroSerie: m.numeroSerie || '', 
-    enlaceFichaTecnica: m.enlaceFichaTecnica || '', 
-    infoTecnica: m.infoTecnica || '',
-    marcaId: String(m.marcaId),
-    tipoEquipoId: String(m.tipoEquipoId),
-    marcaNombre: m.marcaNombre || 'Sin Marca',
-    tipoNombre: m.tipoNombre || 'Sin Tipo'
-  }));
+  return {
+    marcas: (data.marcas || []).map((m: any) => ({
+      id: String(m.id_marca),
+      marcaNombre: m.marcaNombre,
+    })),
+    modelos: (data.modelos || []).map((mod: any) => ({
+      id: String(mod.id_modelo),
+      marcaId: String(mod.id_marca),
+      tipoEquipoId: String(mod.id_tipo_equipo),
+      nombre: mod.nombre,
+      anoVersion: mod.anoVersion || '',
+      numeroSerie: mod.numeroSerie || '',
+      marcaNombre: mod.marcaNombre || '',
+      tipoNombre: mod.tipoNombre || '',
+    })),
+    tiposEquipo: (data.tiposEquipo || []).map((t: any) => ({
+      id: String(t.id_tipo_equipo),
+      tipoNombre: t.tipoNombre,
+    })),
+  };
 }
 
 /**
@@ -36,60 +49,47 @@ export async function getModelosApi(): Promise<Modelo[]> {
  * Conectado con: modelosController.createModelo y modelosController.updateModelo
  */
 export async function saveModeloApi(
-  modeloData: Omit<Modelo, 'id'>, 
-  id?: string
-): Promise<Modelo> {
-  const url = id ? `${API_BASE_URL}/api/modelos/${id}` : `${API_BASE_URL}/api/modelos`;
-  const method = id ? 'PUT' : 'POST';
-
-  // Traducimos lo que viene de la UI al formato plano exacto que espera el req.body del controlador
-  const bodyBackend = {
-    nombre: modeloData.nombre,
-    anoVersion: modeloData.anoVersion,
-    numeroSerie: modeloData.numeroSerie, 
-    enlaceFichaTecnica: (modeloData as any).enlaceFichaTecnica || null, // Alineado al controlador
-    infoTecnica: modeloData.infoTecnica,
-    marcaId: Number(modeloData.marcaId),
-    tipoEquipoId: Number(modeloData.tipoEquipoId)
-  };
-
-  const response = await fetch(url, {
-    method: method,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(bodyBackend),
-  });
-
-  if (!response.ok) {
-    const errData = await response.json().catch(() => ({}));
-    throw new Error(errData.error || 'Error al procesar la solicitud del modelo en el servidor.');
-  }
-
-  const resData = await response.json();
+    modeloData: Omit<Modelo, 'id'>, 
+    id?: string
+  ): Promise<string> {
+    const url = id ? `${API_BASE_URL}/api/modelos/${id}` : `${API_BASE_URL}/api/modelos`;
+    const method = id ? 'PUT' : 'POST';
   
-  // Tu controlador retorna RETURNING * (o el mapeo seguro). Traducimos las columnas de la BD al objeto del Frontend
-  return {
-    id: String(resData.id_modelo || resData.id),
-    nombre: resData.modelo || resData.nombre,
-    anoVersion: resData.year || resData.anoVersion || '',
-    numeroSerie: resData.Serie || resData.numeroSerie || '',
-    enlaceFichaTecnica: resData.link_fich_tecn || resData.enlaceFichaTecnica || '',
-    infoTecnica: resData.inf_tecnica || resData.infoTecnica || '',
-    marcaId: String(resData.id_marca || resData.marcaId),
-    tipoEquipoId: String(resData.id_tipo_equipo || resData.tipoEquipoId),
-    marcaNombre: resData.marcaNombre || 'Sin Marca',
-    tipoNombre: resData.tipoNombre || 'Sin Tipo'
-  };
-}
+    // TRADUCCIÓN: De camelCase (Front) a snake_case (lo que espera tu controlador de Equipos)
+    const bodyBackend = {
+      nombre: modeloData.nombre,
+      anoVersion: modeloData.anoVersion,
+      numeroSerie: modeloData.numeroSerie, 
+      enlaceFichaTecnica: (modeloData as any).enlaceFichaTecnica || null, // Alineado al controlador
+      infoTecnica: modeloData.infoTecnica,
+      marcaId: modeloData.marcaId,
+      tipoEquipoId: modeloData.tipoEquipoId
+    };
+  
+    const response = await fetch(url, {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bodyBackend), 
+    });
+  
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error || 'Error al procesar la solicitud del equipo en el servidor.');
+    }
+    
+    const resData = await response.json();
+    return String(resData.id);
+  }
 
 /**
  * 3. ELIMINAR MODELO (DELETE /api/modelos/:id)
  * Conectado con: modelosController.deleteModelo
  */
 export async function deleteModeloApi(id: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/modelos/${id}`, {
-    method: 'DELETE',
+  const response = await fetch(`${API_BASE_URL}/api/modelos/${id}`, { 
+    method: 'DELETE' 
   });
-
+  
   if (!response.ok) {
     const errData = await response.json().catch(() => ({}));
     throw new Error(errData.error || 'No se pudo eliminar el modelo del servidor.');

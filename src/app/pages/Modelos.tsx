@@ -36,7 +36,7 @@ export function Modelos() {
   const { isAdmin } = useAuth(); // Extrae si el usuario tiene rol administrativo
   const [modelos, setModelos] = useState<Modelo[]>([]); // Almacena el catálogo de modelos reales traídos de la BD
   const [marcasList, setMarcasList] = useState<Marca[]>([]); // Lista de marcas para alimentar los filtros/modales
-  const [tiposEquipo, setTiposEquipo] = useState<TipoEquipo[]>([]); // Lista de tipos de equipos disponibles
+  const [tiposEquipo, setTiposEquipoList] = useState<TipoEquipo[]>([]); // Lista de tipos de equipos disponibles
 
   // Estados dedicados al puente interactivo con el catálogo e histórico de repuestos asociados
   const [repuestosState, setRepuestosState] = useState<RepuestoModelo[]>([]); // Tabla relacional intermedia (Links)
@@ -63,15 +63,15 @@ export function Modelos() {
     async function loadData() {
       try {
         setLoading(true);
-        
-        // Ejecución en paralelo de las consultas iniciales para mitigar tiempos de respuesta
-        const [modelosData, linksData] = await Promise.all([
+        const [data, linksData] = await Promise.all([
           getModelosApi(),
           getAllRepuestosModelosLinksApi().catch(() => []), // Captura preventiva por si la tabla relacional está vacía
         ]);
 
         // Seteo en los estados reactivos de la aplicación
-        setModelos(modelosData);
+        setModelos(data.modelos);
+        setMarcasList(data.marcas);
+        setTiposEquipoList(data.tiposEquipo)
         setRepuestosState(linksData);
 
       } catch (err: any) {
@@ -158,24 +158,21 @@ export function Modelos() {
   
   // Guarda cambios de edición o creación (Mutación temporal hasta enganchar fetch directo)
   const handleSaveModelo = async (modeloData: Omit<Modelo, 'id'>) => {
-  try {
-    setLoading(true); // Encendemos indicador de carga temporal
+    try {
+      const idParaApi = selectedModelo ? selectedModelo.id : undefined;
+      const idGenerado = await saveModeloApi(modeloData, idParaApi);
 
     if (selectedModelo) {
-      // --- CASO EDICIÓN (PUT) ---
-      const modeloActualizado = await saveModeloApi(modeloData, selectedModelo.id);
-      
       setModelos(prev =>
-        prev.map(m => (m.id === selectedModelo.id ? { ...m, ...modeloActualizado } : m))
+        prev.map(m => (m.id === selectedModelo.id ? { ...m, ...modeloData } : m))
       );
     } else {
-      // --- CASO CREACIÓN (POST) ---
-      const nuevoModelo = await saveModeloApi(modeloData);
-      
-      // Lo agregamos al inicio de la lista con su ID real de la base de datos
-      setModelos(prev => [nuevoModelo, ...prev]);
+      const newModelo: Modelo = {
+        ...modeloData,
+        id: idGenerado,
+      };
+      setModelos(prev => [newModelo, ...prev]);
     }
-    
     setIsModalOpen(false); // Cierre exitoso del cuadro de diálogo
   } catch (err: any) {
     console.error(err);

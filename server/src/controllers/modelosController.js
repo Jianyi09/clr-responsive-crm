@@ -5,57 +5,69 @@ import pool from '../db/index.js'; // Ajustado a la misma ruta de base de datos 
 // Endpoint: GET /api/modelos
 export async function getAllModelos(req, res) {
   try {
-    const db = req.db || pool;
-    const query = `
-      SELECT 
-        m.id_modelo, 
-        m.modelo AS "nombre",
-        m.year AS "anoVersion",
-        m."Serie" AS "numeroSerie",
-        m.inf_tecnica AS "infoTecnica",
-        m.link_fich_tecn AS "enlaceFichaTecnica",
-        m.id_marca AS "marcaId",
-        m.id_tipo_equipo AS "tipoEquipoId",
-        ma.marca AS "marcaNombre", 
-        te.nombre_tipo_equipo AS "tipoNombre"
-      FROM "Modelos_Equipos" m
-      JOIN "Marcas_Equipos" ma ON m.id_marca = ma.id_marca
-      JOIN "Tipos_Equipos" te ON m.id_tipo_equipo = te.id_tipo_equipo
-      ORDER BY m.modelo ASC;
-    `;
-    const { rows } = await db.query(query);
-    res.json(rows);
-  } catch (error) {
-    console.error('Database Error en getAllModelos:', error && error.stack ? error.stack : error);
-    res.status(500).json({ error: 'Error al obtener los modelos' });
+      // Usamos req.db para mantener consistencia con el middleware global
+      const db = req.db || pool;
+
+      // Ejecutamos en paralelo todas las consultas necesarias
+      const [resultadosModelos, listaMarcas, listaTipos] = await Promise.all([
+        db.query(`
+          SELECT 
+            m.id_modelo, 
+            m.id_tipo_equipo, 
+            m.id_marca, 
+            m.modelo AS "nombre", 
+            m.year AS "anoVersion", 
+            m."Serie" AS "numeroSerie", 
+            m.inf_tecnica AS "infoTecnica",  
+            m.link_fich_tecn AS "enlaceFichaTecnica",
+            ma.marca AS "marcaNombre",
+            t.nombre_tipo_equipo AS "tipoNombre"
+          FROM "Modelos_Equipos" m
+          LEFT JOIN "Marcas_Equipos" ma ON m.id_marca = ma.id_marca
+          LEFT JOIN "Tipos_Equipos" t ON m.id_tipo_equipo = t.id_tipo_equipo
+          ORDER BY m.id_modelo ASC
+        `),
+        db.query('SELECT id_marca, marca AS "marcaNombre" FROM "Marcas_Equipos" ORDER BY marca ASC'),
+        db.query('SELECT id_tipo_equipo, nombre_tipo_equipo AS "tipoNombre" FROM "Tipos_Equipos" ORDER BY nombre_tipo_equipo ASC')
+      ]);
+
+      res.json({
+        marcas: listaMarcas.rows,
+        modelos: resultadosModelos.rows,
+        tiposEquipo: listaTipos.rows
+      });
+    } catch (err) {
+      console.error('Database Error en Equipos Dashboard:', err && err.stack ? err.stack : err);
+      res.status(500).json({ error: 'Error consultando los datos de modelos de equipos en la base de datos' });
+    }
   }
-}
 
 // ==========================================
 // 2. CREAR MODELO (CORREGIDO)
 // ==========================================
 export async function createModelo(req, res) {
-  // Cambiamos "modelo" por "nombre" para alinearlo al frontend
   const { 
     nombre, marcaId, tipoEquipoId, anoVersion, numeroSerie, infoTecnica, enlaceFichaTecnica 
   } = req.body;
 
   try {
     const insertQuery = `
-      INSERT INTO "Modelos_Equipos" (
-        id_marca, id_tipo_equipo, modelo, 
-        year, "Serie", inf_tecnica, link_fich_tecn
+      INSERT INTO "Modelos_Equipos" ( 
+        modelo, id_marca, id_tipo_equipo, year, "Serie", inf_tecnica, link_fich_tecn
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING id_modelo;
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING id_modelo
     `;
+
     const db = req.db || pool;
-    // Pasamos 'nombre' en la tercera posición ($3 -> modelo)
-    const { rows } = await db.query(insertQuery, [marcaId, tipoEquipoId, nombre, anoVersion, numeroSerie, infoTecnica, enlaceFichaTecnica]);
-    res.status(201).json(rows[0]);
+    const result = await db.query(insertQuery, [
+      nombre, marcaId, tipoEquipoId, anoVersion, numeroSerie, infoTecnica, enlaceFichaTecnica
+    ]);
+
+    res.status(201).json({ id: result.rows[0].id_equipo });
   } catch (error) {
-    console.error('Error al crear el modelo:', error);
-    res.status(500).json({ error: 'Error al crear el modelo' });
+    console.error('Error al crear modelo:', error);
+    res.status(500).json({ error: 'Error interno al registrar el modelo' });
   }
 }
 
@@ -63,45 +75,58 @@ export async function createModelo(req, res) {
 // 3. ACTUALIZAR MODELO (VERIFICADO)
 // ==========================================
 export async function updateModelo(req, res) {
+  const id = req.params.id;
+  const { nombre, marcaId, tipoEquipoId, anoVersion, numeroSerie, infoTecnica, enlaceFichaTecnica } = req.body;
+
   try {
-    const { id } = req.params;
-    const { nombre, marcaId, tipoEquipoId, anoVersion, numeroSerie, infoTecnica, enlaceFichaTecnica } = req.body;
-    
-    const query = `
-      UPDATE "Modelos_Equipos" 
-      SET modelo = $1, id_marca = $2, id_tipo_equipo = $3, year = $4, "Serie" = $5, inf_tecnica = $6, link_fich_tecn = $7
-      WHERE id_modelo = $8 RETURNING *;
+    const updateQuery = `
+      UPDATE "Modelos_Equipos"
+      SET 
+        modelo = $1, 
+        id_marca = $2, 
+        id_tipo_equipo = $3, 
+        year = $4, 
+        "Serie" = $5, 
+        inf_tecnica = $6, 
+        link_fich_tecn = $7,
+      WHERE id_modelo = $8
+      RETURNING id_modelo
     `;
+
     const db = req.db || pool;
-    const { rows } = await db.query(query, [nombre, marcaId, tipoEquipoId, anoVersion, numeroSerie, infoTecnica, enlaceFichaTecnica, id]);
-    
-    if (rows.length === 0) {
-      return res.status(404).json({ error: 'Modelo no encontrado' });
+    const result = await db.query(updateQuery, [
+      nombre, marcaId, tipoEquipoId, anoVersion, numeroSerie, infoTecnica, enlaceFichaTecnica, id
+    ]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'modelo no encontrado' });
     }
-    res.json(rows[0]);
+
+    res.json({ id: result.rows[0].id_modelo });
   } catch (error) {
     console.error('Error al actualizar el modelo:', error);
-    res.status(500).json({ error: 'Error al actualizar el modelo' });
+    res.status(500).json({ error: 'Error interno al actualizar el modelo' });
   }
 }
 
 // 4. ELIMINAR MODELO
 // Endpoint: DELETE /api/modelos/:id
 export async function deleteModelo(req, res) {
+  const { id } = req.params;
+
   try {
-    const { id } = req.params;
     const query = 'DELETE FROM "Modelos_Equipos" WHERE id_modelo = $1';
     
     const db = req.db || pool;
     const result = await db.query(query, [id]);
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Modelo no encontrado' });
+      return res.status(404).json({ error: 'modelo no encontrado' });
     }
-    res.json({ message: 'Modelo eliminado correctamente' });
+    res.json({ message: 'modelo eliminado exitosamente' });
   } catch (error) {
     console.error('Error al eliminar el modelo:', error);
-    res.status(500).json({ error: 'Error al eliminar el modelo' });
+    res.status(500).json({ error: 'Error al intentar eliminar el modelo' });
   }
 }
 
