@@ -55,7 +55,7 @@ export async function createModelo(req, res) {
       INSERT INTO "Modelos_Equipos" ( 
         modelo, id_marca, id_tipo_equipo, year, "Serie", inf_tecnica, link_fich_tecn
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id_modelo
     `;
 
@@ -88,7 +88,7 @@ export async function updateModelo(req, res) {
         year = $4, 
         "Serie" = $5, 
         inf_tecnica = $6, 
-        link_fich_tecn = $7,
+        link_fich_tecn = $7
       WHERE id_modelo = $8
       RETURNING id_modelo
     `;

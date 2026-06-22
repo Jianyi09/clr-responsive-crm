@@ -23,8 +23,8 @@ interface EquipoModalProps {
   tiposEquipo: TipoEquipo[];
   marcasList: Marca[];
   modelosList: Modelo[];
-  onAddMarca: (marca: Marca) => void;
-  onAddModelo: (modelo: Modelo) => void;
+  onAddMarcaAsync: (marcaNombre: string) => Promise<Marca>;
+  onAddModeloAsync: (modeloData: Omit<Modelo, 'id'>) => Promise<Modelo>;
 }
 
 export function EquipoModal({
@@ -39,8 +39,8 @@ export function EquipoModal({
   tiposEquipo,
   marcasList,
   modelosList,
-  onAddMarca,
-  onAddModelo,
+  onAddMarcaAsync,
+  onAddModeloAsync,
 }: EquipoModalProps) {
   const { isAdmin } = useAuth();
   const [mode, setMode] = useState<'view' | 'edit'>('view');
@@ -127,16 +127,24 @@ export function EquipoModal({
     }
   };
 
-  const handleCreateMarca = () => {
-    const newMarca: Marca = {
-      id: Date.now().toString(),
-      marcaNombre: newMarcaName,
-    };
-    onAddMarca(newMarca);
-    setFormData(prev => ({ ...prev, marcaId: newMarca.id }));
-    setMarcaInput(newMarca.marcaNombre);
-    setShowMarcaDialog(false);
-    toast.success(`Marca "${newMarca.marcaNombre}" creada exitosamente`);
+  const handleCreateMarca = async () => {
+    if (!newMarcaName.trim()) return;
+
+    try {
+      // 1. Enviamos el nombre de la marca y esperamos el objeto real con el ID de la Base de Datos
+      const marcaGuardada = await onAddMarcaAsync(newMarcaName);
+      
+      // 2. Asociamos el ID y texto legítimo al formulario
+      setFormData(prev => ({ ...prev, marcaId: marcaGuardada.id }));
+      setMarcaInput(marcaGuardada.marcaNombre);
+      
+      setShowMarcaDialog(false);
+      setNewMarcaName('');
+      toast.success(`Marca "${marcaGuardada.marcaNombre}" creada exitosamente`);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Error al intentar guardar la marca en el servidor.');
+    }
   };
 
   const handleModeloInputChange = (value: string) => {
@@ -159,29 +167,45 @@ export function EquipoModal({
     }
   };
 
-  const handleCreateModelo = () => {
-    const nombreMarca = marcasList.find(m => String((m as any).id_marca || m.id) === String(formData.marcaId))?.marcaNombre || 'Sin Marca';
-    const nombreTipo = tiposEquipo.find(t => String((t as any).id_tipo_equipo || t.id) === String(formData.tipoEquipoId))?.tipoNombre || 'Sin Tipo';
+  const handleCreateModelo = async () => {
+    try {
+      if (!formData.marcaId || !formData.tipoEquipoId) {
+        toast.error('Debe seleccionar una Marca y un Tipo de equipo antes de registrar un nuevo modelo');
+        return;
+      }
 
-    const newModelo: Modelo = {
-      id: Date.now().toString(),
-      nombre: newModeloName,
-      marcaId: formData.marcaId,
-      tipoEquipoId: formData.tipoEquipoId,
-      anoVersion: '',
-      numeroSerie: '',
-      infoTecnica: '',
-      enlaceFichaTecnica: '',
-      marcaNombre: nombreMarca, 
-      tipoNombre: nombreTipo   
-    };
-    
-    onAddModelo(newModelo);
-    setFormData(prev => ({ ...prev, modeloId: newModelo.id }));
-    setModeloInput(newModelo.nombre);
-    setShowModeloDialog(false);
-    toast.success(`Modelo "${newModelo.nombre}" creado exitosamente`);
+      const nombreMarca = marcasList.find(m => String((m as any).id_marca || m.id) === String(formData.marcaId))?.marcaNombre || 'Sin Marca';
+      const nombreTipo = tiposEquipo.find(t => String((t as any).id_tipo_equipo || t.id) === String(formData.tipoEquipoId))?.tipoNombre || 'Sin Tipo';
+
+      // 1. Preparamos el payload sin mandar un ID temporal
+      const nuevoModeloPayload: Omit<Modelo, 'id'> = {
+        nombre: newModeloName,
+        marcaId: formData.marcaId,
+        tipoEquipoId: formData.tipoEquipoId,
+        anoVersion: '',
+        numeroSerie: '',
+        infoTecnica: 'Registrado express desde asignación de equipo',
+        enlaceFichaTecnica: '',
+        marcaNombre: nombreMarca, 
+        tipoNombre: nombreTipo   
+      };
+      
+      // 2. Disparamos la mutación asíncrona hacia el servicio
+      const modeloGuardado = await onAddModeloAsync(nuevoModeloPayload);
+      
+      // 3. Seteamos los estados del input con la respuesta real del backend
+      setFormData(prev => ({ ...prev, modeloId: modeloGuardado.id }));
+      setModeloInput(modeloGuardado.nombre);
+      
+      setShowModeloDialog(false);
+      setNewModeloName('');
+      toast.success(`Modelo "${modeloGuardado.nombre}" creado exitosamente`);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Error al intentar guardar el modelo en el servidor.');
+    }
   };
+    
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};

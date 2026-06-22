@@ -63,9 +63,7 @@ export async function crearEquipo(req, res) {
 export async function actualizarEquipo(req, res) {
   const id = req.params.id;
   const { 
-    clienteId, tipoEquipoId, marcaId, modeloId, 
-    aliasInterno, observacion, serial, infoTecnica 
-  } = req.body;
+    clienteId, tipoEquipoId, marcaId, modeloId, aliasInterno, observacion, serial, infoTecnica } = req.body;
 
   try {
     const updateQuery = `

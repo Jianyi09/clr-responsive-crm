@@ -19,6 +19,8 @@ import { EquipoModal } from '../components/modals/EquipoModal';
 import { RepuestosModal } from '../components/modals/RepuestosModal';
 import { useAuth } from '../context/AuthContext';
 import { getEquiposInitData, saveEquipoApi, eliminarEquipoApi } from '../services/equiposApi';
+import { saveModeloApi } from '../services/modelosApi';
+import { saveMarcaApi } from '../services/marcasApi';
 
 export function Equipos() {
   const { isAdmin } = useAuth();
@@ -184,12 +186,41 @@ export function Equipos() {
     }
   };
 
-  const handleAddMarca = (marca: Marca) => {
-    setMarcasList(prev => [...prev, marca]);
+  // Lógica Asíncrona para registrar Modelos Express desde el Modal de Equipos
+  const handleAddModeloAsync = async (modeloData: Omit<Modelo, 'id'>): Promise<Modelo> => {
+    try {
+      // 1. Guardamos físicamente en el backend y esperamos el ID real de PostgreSQL
+      const idGenerado = await saveModeloApi(modeloData);
+      
+      const nuevoModelo: Modelo = {
+        ...modeloData,
+        id: idGenerado,
+      };
+
+      // 2. Impactamos el estado local de la lista de modelos para que el selector se actualice
+      setModelosList(prev => [nuevoModelo, ...prev]);
+
+      return nuevoModelo;
+    } catch (err) {
+      console.error(err);
+      throw new Error(err instanceof Error ? err.message : 'Error al guardar el modelo rápido en el servidor');
+    }
   };
 
-  const handleAddModelo = (modelo: Modelo) => {
-    setModelosList(prev => [...prev, modelo]);
+  // Lógica Asíncrona para registrar Marcas Express desde el Modal de Equipos
+  const handleAddMarcaAsync = async (marcaNombre: string): Promise<Marca> => {
+    try {
+      // Llamamos directo a nuestro nuevo servicio de la API
+      const nuevaMarca = await saveMarcaApi(marcaNombre);
+
+      // Impactamos el estado local de marcas para refrescar la interfaz al instante
+      setMarcasList(prev => [...prev, nuevaMarca]);
+
+      return nuevaMarca;
+    } catch (err) {
+      console.error('Error al registrar la marca express:', err);
+      throw new Error(err instanceof Error ? err.message : 'No se pudo pre-registrar la marca.');
+    }
   };
 
   // Manejadores No-Op requeridos por el modal de repuestos (ya que es de solo lectura aquí)
@@ -378,8 +409,8 @@ export function Equipos() {
         tiposEquipo={tiposEquipo}
         marcasList={marcasList}
         modelosList={modelosList}
-        onAddMarca={handleAddMarca}
-        onAddModelo={handleAddModelo}
+        onAddMarcaAsync={handleAddMarcaAsync}
+        onAddModeloAsync={handleAddModeloAsync}
       />
 
       {/* Modal de Repuestos Inyectado de Figma (Solo Lectura en Equipos) */}

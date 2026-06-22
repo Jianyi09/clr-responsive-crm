@@ -58,12 +58,12 @@ export async function saveModeloApi(
     // TRADUCCIÓN: De camelCase (Front) a snake_case (lo que espera tu controlador de Equipos)
     const bodyBackend = {
       nombre: modeloData.nombre,
+      marcaId: modeloData.marcaId,
+      tipoEquipoId: modeloData.tipoEquipoId,
       anoVersion: modeloData.anoVersion,
       numeroSerie: modeloData.numeroSerie, 
-      enlaceFichaTecnica: (modeloData as any).enlaceFichaTecnica || null, // Alineado al controlador
       infoTecnica: modeloData.infoTecnica,
-      marcaId: modeloData.marcaId,
-      tipoEquipoId: modeloData.tipoEquipoId
+      enlaceFichaTecnica: (modeloData as any).enlaceFichaTecnica || null // Alineado al controlador
     };
   
     const response = await fetch(url, {
