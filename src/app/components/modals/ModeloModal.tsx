@@ -18,6 +18,7 @@ interface ModeloModalProps {
   onDelete: (id: string) => void;
   marcasList: Marca[];
   tiposEquipo: TipoEquipo[];
+  onAddMarcaAsync: (marcaNombre: string) => Promise<Marca>;
 }
 
 export function ModeloModal({
@@ -29,10 +30,14 @@ export function ModeloModal({
   onDelete,
   marcasList,
   tiposEquipo,
+  onAddMarcaAsync,
 }: ModeloModalProps) {
   const { isAdmin } = useAuth();
   const [mode, setMode] = useState<'view' | 'edit'>('view');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showMarcaDialog, setShowMarcaDialog] = useState(false);
+  const [showModeloDialog, setShowModeloDialog] = useState(false);
+  const [newMarcaName, setNewMarcaName] = useState('');
 
   const [formData, setFormData] = useState({
     nombre: '',
@@ -98,6 +103,7 @@ export function ModeloModal({
 
   // Manejador global para cerrar dropdowns al hacer clic fuera de sus contenedores
   useEffect(() => {
+    
     const handleClickOutside = (event: MouseEvent) => {
       if (marcaRef.current && !marcaRef.current.contains(event.target as Node)) {
         setShowMarcaDropdown(false);
@@ -110,6 +116,43 @@ export function ModeloModal({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+  
+  const handleMarcaInputChange = (value: string) => {
+    setMarcaInput(value);
+    const marca = marcasList.find(m => m.marcaNombre.toLowerCase() === value.toLowerCase());
+    if (marca) {
+      setFormData(prev => ({ ...prev, marcaId: marca.id }));
+    } else {
+      setFormData(prev => ({ ...prev, marcaId: '' }));
+    }
+  };
+
+  const handleMarcaInputBlur = () => {
+    if (marcaInput && !formData.marcaId) {
+      const exists = marcasList.some(m => m.marcaNombre.toLowerCase() === marcaInput.toLowerCase());
+      if (!exists) {
+        setNewMarcaName(marcaInput);
+        setShowMarcaDialog(true);
+      }
+    }
+  };
+
+  const handleCreateMarca = async () => {
+    if (!newMarcaName.trim()) return;
+
+    try {
+      // Usamos el prop asíncrono que ya tienes declarado
+      const marcaGuardada = await onAddMarcaAsync({ marcaNombre: newMarcaName } as any);
+      
+      setFormData(prev => ({ ...prev, marcaId: marcaGuardada.id }));
+      setMarcaInput(marcaGuardada.marcaNombre || (marcaGuardada as any).marca_nombre || newMarcaName);
+      
+      setShowMarcaDialog(false);
+      setNewMarcaName('');
+    } catch (err: any) {
+      console.error(err);
+    }
+  };
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -184,11 +227,11 @@ export function ModeloModal({
   };
 
   const filteredMarcas = marcasList.filter(m =>
-    m.marcaNombre.toLowerCase().includes(marcaInput.toLowerCase())
+    (m?.marcaNombre || '').toLowerCase().includes((marcaInput || '' ).toLowerCase())
   );
 
   const filteredTipos = tiposEquipo.filter(t =>
-    t.tipoNombre.toLowerCase().includes(tipoInput.toLowerCase())
+    (t?.tipoNombre || '').toLowerCase().includes((tipoInput || '').toLowerCase())
   );
 
   return (

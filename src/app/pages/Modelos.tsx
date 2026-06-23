@@ -26,8 +26,11 @@ import {
   getModelosApi, 
   saveModeloApi, 
   deleteModeloApi, 
-  getAllRepuestosModelosLinksApi 
+  getAllRepuestosModelosLinksApi,
+  asociarRepuestoApi
 } from '../services/modelosApi';
+
+import { saveMarcaApi } from '../services/marcasApi';
 
 export function Modelos() {
   // ==========================================
@@ -37,6 +40,7 @@ export function Modelos() {
   const [modelos, setModelos] = useState<Modelo[]>([]); // Almacena el catálogo de modelos reales traídos de la BD
   const [marcasList, setMarcasList] = useState<Marca[]>([]); // Lista de marcas para alimentar los filtros/modales
   const [tiposEquipo, setTiposEquipoList] = useState<TipoEquipo[]>([]); // Lista de tipos de equipos disponibles
+  const [marcas, setMarcas] = useState<Marca[]>([]);
 
   // Estados dedicados al puente interactivo con el catálogo e histórico de repuestos asociados
   const [repuestosState, setRepuestosState] = useState<RepuestoModelo[]>([]); // Tabla relacional intermedia (Links)
@@ -55,6 +59,7 @@ export function Modelos() {
   // Estados del Modal Secundario de Repuestos (Asociados al modelo)
   const [repuestosModelo, setRepuestosModelo] = useState<Modelo | null>(null); // Rastrea de qué modelo estamos inspeccionando repuestos
   const [isRepuestosModalOpen, setIsRepuestosModalOpen] = useState(false); // Flag de apertura del modal de repuestos
+  
 
   // ==========================================
   // EFECTO DE CARGA INICIAL (PUENTE BACKEND)
@@ -182,6 +187,16 @@ export function Modelos() {
   }
 };
 
+const handleAddMarcaAsync = async (marcaNombre: string): Promise<Marca> => {
+  try {
+    const nuevaMarca = await saveMarcaApi(marcaNombre);
+    setMarcas(prev => [...prev, nuevaMarca]); // Al impactar el estado, el dropdown se actualiza solo
+    return nuevaMarca;
+  } catch (err: any) {
+    throw new Error(err.message || 'No se pudo registrar la marca.');
+  }
+};
+
 // Remueve un modelo de la base de datos y actualiza el estado local
 const handleDeleteModelo = async (id: string) => {
   try {
@@ -202,14 +217,42 @@ const handleDeleteModelo = async (id: string) => {
 };
 
   // Agrega una nueva relación intermedia entre un repuesto existente y el modelo activo
-  const handleAddRepuesto = (newLink: RepuestoModelo) => {
-    setRepuestosState(prev => [...prev, newLink]);
+  const handleAddRepuesto = async (newLink: RepuestoModelo) => {
+    if (!repuestosModelo) return;
+    try {
+      const response = await asociarRepuestoApi(repuestosModelo.id, {
+        tipo: 'existing',
+        repuestoId: newLink.repuestoId
+      });
+      setRepuestosState(prev => [...prev, response.link]);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'Error al asociar el repuesto existente.');
+    }
   };
 
   // Inserción simultánea: registra un repuesto inédito en el catálogo y crea su enlace con el modelo
-  const handleAddNewRepuesto = (newRepuesto: Repuesto, newLink: RepuestoModelo) => {
-    setListaRepuestosState(prev => [...prev, newRepuesto]);
-    setRepuestosState(prev => [...prev, newLink]);
+  const handleAddNewRepuesto = async (newRepuesto: Repuesto, newLink: RepuestoModelo) => {
+    if (!repuestosModelo) return;
+    try {
+      const response = await asociarRepuestoApi(repuestosModelo.id, {
+        tipo: 'new',
+        repuestoId: null,
+        nuevoRepuesto: {
+          nombre: newRepuesto.nombre,
+          codigoParte: newRepuesto.codigoParte,
+          infoTecnica: newRepuesto.infoTecnica
+        }
+      });
+
+      if (response.repuesto) {
+        setListaRepuestosState(prev => [...prev, response.repuesto!]);
+      }
+      setRepuestosState(prev => [...prev, response.link]);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'Error al registrar el nuevo repuesto.');
+    }
   };
 
   // Helper dinámico para renderizar el contador numérico de repuestos en las tarjetas
@@ -376,6 +419,7 @@ const handleDeleteModelo = async (id: string) => {
         onDelete={handleDeleteModelo}
         marcasList={marcasList}
         tiposEquipo={tiposEquipo}
+        onAddMarcaAsync={handleAddMarcaAsync}
       />
 
       {/* COMPONENTE INYECTADO: Modal de catálogo de repuestos asociados */}

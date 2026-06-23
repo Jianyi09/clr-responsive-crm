@@ -8,12 +8,12 @@ const API_BASE_URL = 'http://localhost:4000';
  * Conectado con: crearMarca(req, res) en el controlador de marcas
  * Registro express asíncrono desde la asignación o creación rápida de equipos.
  */
-export async function saveMarcaApi(marca: string): Promise<Marca> {
+export async function saveMarcaApi(marcaNombre: string): Promise<Marca> {
   const url = `${API_BASE_URL}/api/marcas`;
 
   // Cuerpo adaptado al backend (se envía directamente la propiedad que espera el controlador)
   const bodyBackend = {
-    marcaNombre: marca
+    marcaNombre: marcaNombre
   };
 
   const response = await fetch(url, {
@@ -32,6 +32,6 @@ export async function saveMarcaApi(marca: string): Promise<Marca> {
   // Mapeamos explícitamente garantizando consistencia total con tus interfaces y tipados
   return {
     id: String(data.id),
-    marcaNombre: data.marca || ''
+    marcaNombre: data.marcaNombre || ''
   };
 }

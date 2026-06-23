@@ -64,7 +64,7 @@ export async function createModelo(req, res) {
       nombre, marcaId, tipoEquipoId, anoVersion, numeroSerie, infoTecnica, enlaceFichaTecnica
     ]);
 
-    res.status(201).json({ id: result.rows[0].id_equipo });
+    res.status(201).json({ id: result.rows[0].id_modelo });
   } catch (error) {
     console.error('Error al crear modelo:', error);
     res.status(500).json({ error: 'Error interno al registrar el modelo' });

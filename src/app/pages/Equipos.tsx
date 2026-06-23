@@ -159,7 +159,7 @@ export function Equipos() {
       } else {
         const newEquipo: Equipo = {
           ...equipoData,
-          id: idGenerado,
+          id: String(idGenerado),
         };
         setEquipos(prev => [newEquipo, ...prev]);
       }
@@ -277,17 +277,6 @@ export function Equipos() {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
             />
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="solo-con-equipos"
-              checked={soloConEquipos}
-              onCheckedChange={setSoloConEquipos}
-            />
-            <Label htmlFor="solo-con-equipos" className="cursor-pointer">
-              Mostrar solo clientes con equipos registrados
-            </Label>
           </div>
         </CardContent>
       </Card>

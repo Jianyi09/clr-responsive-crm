@@ -80,10 +80,12 @@ export async function saveEquipoApi(
 
   // TRADUCCIÓN: De camelCase (Front) a snake_case (lo que espera tu controlador de Equipos)
   const bodyBackend = {
-    clienteId: equipoData.clienteId,
-    tipoEquipoId: equipoData.tipoEquipoId,
-    marcaId: equipoData.marcaId,
-    modeloId: equipoData.modeloId,
+    clienteId: equipoData.clienteId ? Number(equipoData.clienteId): null,
+    tipoEquipoId: equipoData.tipoEquipoId ? Number(equipoData.tipoEquipoId): null,
+    marcaId: equipoData.marcaId ? Number(equipoData.marcaId): null,
+    modeloId: (equipoData.modeloId && equipoData.modeloId !== 'undefined') 
+      ? Number(equipoData.modeloId) 
+      : null,
     aliasInterno: equipoData.aliasInterno,
     observacion: equipoData.observacion,
     serial: equipoData.serial,

@@ -61,14 +61,18 @@ export function EquipoModal({
     infoTecnica: '',
   });
 
+  const [clienteInput, setClienteInput] = useState('');
   const [marcaInput, setMarcaInput] = useState('');
   const [modeloInput, setModeloInput] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    if (!isOpen) return;
+
     if (isCreating) {
       setMode('edit');
-      setFormData({
+      // Solamente inicializamos si el formulario está completamente vacío (evita sobreescritura)
+      setFormData(prev => prev.clienteId ? prev : {
         clienteId: '',
         tipoEquipoId: '',
         marcaId: '',
@@ -78,8 +82,6 @@ export function EquipoModal({
         serial: '',
         infoTecnica: '',
       });
-      setMarcaInput('');
-      setModeloInput('');
       setErrors({});
     } else if (equipo) {
       setMode('view');
@@ -99,7 +101,7 @@ export function EquipoModal({
       setModeloInput(modelo?.nombre || '');
       setErrors({});
     }
-  }, [equipo, isCreating, isOpen, marcasList, modelosList]);
+  }, [equipo, isCreating, isOpen]);
 
   const modelosDisponibles = useMemo(() => {
     return modelosList.filter(
@@ -132,11 +134,11 @@ export function EquipoModal({
 
     try {
       // 1. Enviamos el nombre de la marca y esperamos el objeto real con el ID de la Base de Datos
-      const marcaGuardada = await onAddMarcaAsync(newMarcaName);
+      const marcaGuardada = await onAddMarcaAsync({ marcaNombre: newMarcaName } as any);
       
       // 2. Asociamos el ID y texto legítimo al formulario
       setFormData(prev => ({ ...prev, marcaId: marcaGuardada.id }));
-      setMarcaInput(marcaGuardada.marcaNombre);
+      setMarcaInput(marcaGuardada.marcaNombre || (marcaGuardada as any).marca_nombre || newMarcaName);
       
       setShowMarcaDialog(false);
       setNewMarcaName('');
