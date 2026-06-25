@@ -19,7 +19,7 @@ import { EquipoModal } from '../components/modals/EquipoModal';
 import { RepuestosModal } from '../components/modals/RepuestosModal';
 import { useAuth } from '../context/AuthContext';
 import { getEquiposInitData, saveEquipoApi, eliminarEquipoApi } from '../services/equiposApi';
-import { saveModeloApi } from '../services/modelosApi';
+import { saveModeloApi, getModelosApi } from '../services/modelosApi';
 import { saveMarcaApi } from '../services/marcasApi';
 
 export function Equipos() {
@@ -52,20 +52,30 @@ export function Equipos() {
   const [isRepuestosModalOpen, setIsRepuestosModalOpen] = useState(false);
 
   // Carga inicial conectada al Puente Backend-Frontend
+  // Carga inicial conectada al Puente Backend-Frontend
   useEffect(() => {
     async function loadData() {
       try {
         setLoading(true);
-        const dashboardData = await getEquiposInitData();
+        const [dashboardData, modelosData] = await Promise.all([
+          getEquiposInitData(),
+          getModelosApi(), // Este endpoint retorna un objeto con { modelos, repuestos, links }
+        ]);
 
+        // 1. Poblamos datos maestros de Equipos
         setEquipos(dashboardData.equipos);
         setClientesList(dashboardData.clientes);
         setMarcasList(dashboardData.marcas);
-        setModelosList(dashboardData.modelos);
         setTiposEquipo(dashboardData.tiposEquipo);
         
-        // Inicializadores de repuestos si tu backend los incluye en el futuro
-        // Por ahora los dejamos vacíos o mapeados si vienen en el payload
+        // 2. Poblamos la lista de Modelos real
+        setModelosList(modelosData.modelos || []);
+
+        // 3. 🛠️ CORRECCIÓN CRÍTICA: Guardamos las relaciones intermedias (links)
+        // Nota: Revisa si tu backend lo llamó 'links' o 'repuestosModelos' en la respuesta JSON
+        setRepuestosState(modelosData.links || []); 
+        setListaRepuestos(modelosData.repuestos || []);
+        
       } catch (err) {
         console.error(err);
         setError('No se pudieron cargar los datos de los equipos reales.');
@@ -236,6 +246,9 @@ export function Equipos() {
     ? modelosList.find(m => m.id === repuestosEquipo.modeloId) ?? null
     : null;
 
+  const getRepuestosCount = (modeloId: string) =>
+    repuestosState.filter(rm => String(rm.modeloId) === String(modeloId)).length;
+
   if (loading) {
     return <div className="py-10 text-center text-gray-600">Cargando la flota de equipos reales...</div>;
   }
@@ -361,7 +374,15 @@ export function Equipos() {
                                   >
                                     <Wrench className="w-3 h-3 mr-1" />
                                     Repuestos
+                                    
+                                    {/* 🛠️ PASO 1 Y 2: Calculamos los enlaces activos de este modelo e inyectamos el círculo azul */}
+                                    {equipo.modeloId && getRepuestosCount(equipo.modeloId) > 0 && (
+                                      <span className="ml-1.5 bg-[#0066CC] text-white text-[10px] rounded-full w-4 h-4 inline-flex items-center justify-center leading-none font-sans font-medium">
+                                        {getRepuestosCount(equipo.modeloId)}
+                                      </span>
+                                    )}
                                   </Button>
+                                  
                                   <Button
                                     size="sm"
                                     className="flex-1 text-xs h-7 bg-[#0066CC] hover:bg-[#0052A3] text-white"

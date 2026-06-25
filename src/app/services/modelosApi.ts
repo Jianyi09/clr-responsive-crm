@@ -4,6 +4,8 @@ export interface ModelosDashboard {
   marcas: Marca[];
   tiposEquipo: TipoEquipo[];
   modelos: Modelo[];
+  repuestos: Repuesto[];
+  links: RepuestoModelo[];
 }
 
 const API_BASE_URL = 'http://localhost:4000';
@@ -40,6 +42,17 @@ export async function getModelosApi(): Promise<ModelosDashboard> {
     tiposEquipo: (data.tiposEquipo || []).map((t: any) => ({
       id: String(t.id_tipo_equipo),
       tipoNombre: t.tipoNombre,
+    })),
+    repuestos: (data.repuestos || []).map((r: any) => ({
+      id: String(r.id),
+      nombre: r.nombre,
+      codigoParte: r.codigoParte,
+      infoTecnica: r.infoTecnica || '',
+    })),
+    links: (data.links || data.repuestosModelos || []).map((l: any) => ({
+      id: String(l.id_repuesto_modelo),
+      modeloId: String(l.id_modelo),
+      repuestoId: String(l.id_repuesto),
     })),
   };
 }

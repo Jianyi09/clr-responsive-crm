@@ -76,8 +76,21 @@ export function Modelos() {
         // Seteo en los estados reactivos de la aplicación
         setModelos(data.modelos);
         setMarcasList(data.marcas);
-        setTiposEquipoList(data.tiposEquipo)
+        setTiposEquipoList(data.tiposEquipo);
         setRepuestosState(linksData);
+
+        // 🛠️ NUEVA CORRECCIÓN: Guardar el catálogo maestro de repuestos normalizando sus propiedades
+        if (data.repuestos) {
+          const repuestosFormateados = data.repuestos.map((r: any) => ({
+            id: String(r.id),
+            nombre: r.nombre,
+            codigoParte: r.codigoParte,
+            infoTecnica: r.infoTecnica || '',
+          }));
+          setListaRepuestosState(repuestosFormateados);
+        } else {
+          setListaRepuestosState([]);
+        }
 
       } catch (err: any) {
         console.error(err);
@@ -224,7 +237,15 @@ const handleDeleteModelo = async (id: string) => {
         tipo: 'existing',
         repuestoId: newLink.repuestoId
       });
-      setRepuestosState(prev => [...prev, response.link]);
+
+      // Normalizamos el link relacional para asegurar compatibilidad de tipos string
+      const linkNormalizado: RepuestoModelo = {
+        id: String(response.link.id),
+        modeloId: String(response.link.modeloId),
+        repuestoId: String(response.link.repuestoId)
+      };
+
+      setRepuestosState(prev => [...prev, linkNormalizado]);
     } catch (err: any) {
       console.error(err);
       alert(err.message || 'Error al asociar el repuesto existente.');
@@ -245,10 +266,25 @@ const handleDeleteModelo = async (id: string) => {
         }
       });
 
+      // 1. Si el servidor creó con éxito el repuesto maestro, lo agregamos al catálogo
       if (response.repuesto) {
-        setListaRepuestosState(prev => [...prev, response.repuesto!]);
+        const repuestoNormalizado: Repuesto = {
+          id: String(response.repuesto.id),
+          nombre: response.repuesto.nombre,
+          codigoParte: response.repuesto.codigoParte,
+          infoTecnica: response.repuesto.infoTecnica || ''
+        };
+        setListaRepuestosState(prev => [...prev, repuestoNormalizado]);
       }
-      setRepuestosState(prev => [...prev, response.link]);
+
+      // 2. Normalizamos y agregamos la relación intermedia
+      const linkNormalizado: RepuestoModelo = {
+        id: String(response.link.id),
+        modeloId: String(response.link.modeloId),
+        repuestoId: String(response.link.repuestoId)
+      };
+      
+      setRepuestosState(prev => [...prev, linkNormalizado]);
     } catch (err: any) {
       console.error(err);
       alert(err.message || 'Error al registrar el nuevo repuesto.');
@@ -257,7 +293,7 @@ const handleDeleteModelo = async (id: string) => {
 
   // Helper dinámico para renderizar el contador numérico de repuestos en las tarjetas
   const getRepuestosCount = (modeloId: string) =>
-    repuestosState.filter(rm => rm.modeloId === modeloId).length;
+    repuestosState.filter(rm => String(rm.modeloId) === String(modeloId)).length;
 
   // ==========================================
   // RENDERIZADO DE ALERTAS / PANTALLAS DE CONTROL

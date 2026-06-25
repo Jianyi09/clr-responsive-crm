@@ -3,45 +3,60 @@ import pool from '../db/index.js'; // Ajustado a la misma ruta de base de datos 
 
 // 1. OBTENER TODOS LOS MODELOS
 // Endpoint: GET /api/modelos
+// server/src/controllers/modelosController.js
+
+// 1. OBTENER TODOS LOS MODELOS
+// Endpoint: GET /api/modelos/dashboard
 export async function getAllModelos(req, res) {
   try {
-      // Usamos req.db para mantener consistencia con el middleware global
-      const db = req.db || pool;
+    const db = req.db || pool;
 
-      // Ejecutamos en paralelo todas las consultas necesarias
-      const [resultadosModelos, listaMarcas, listaTipos] = await Promise.all([
-        db.query(`
-          SELECT 
-            m.id_modelo, 
-            m.id_tipo_equipo, 
-            m.id_marca, 
-            m.modelo AS "nombre", 
-            m.year AS "anoVersion", 
-            m."Serie" AS "numeroSerie", 
-            m.inf_tecnica AS "infoTecnica",  
-            m.link_fich_tecn AS "enlaceFichaTecnica",
-            ma.marca AS "marcaNombre",
-            t.nombre_tipo_equipo AS "tipoNombre"
-          FROM "Modelos_Equipos" m
-          LEFT JOIN "Marcas_Equipos" ma ON m.id_marca = ma.id_marca
-          LEFT JOIN "Tipos_Equipos" t ON m.id_tipo_equipo = t.id_tipo_equipo
-          ORDER BY m.id_modelo ASC
-        `),
-        db.query('SELECT id_marca, marca AS "marcaNombre" FROM "Marcas_Equipos" ORDER BY marca ASC'),
-        db.query('SELECT id_tipo_equipo, nombre_tipo_equipo AS "tipoNombre" FROM "Tipos_Equipos" ORDER BY nombre_tipo_equipo ASC')
-      ]);
+    // 🛠️ Agregamos la QUINTA consulta en paralelo para traer las relaciones intermedias de la base de datos
+    const [resultadosModelos, listaMarcas, listaTipos, listaRepuestos, linksQuery] = await Promise.all([
+      db.query(`
+        SELECT 
+          m.id_modelo, 
+          m.id_tipo_equipo, 
+          m.id_marca, 
+          m.modelo AS "nombre", 
+          m.year AS "anoVersion", 
+          m."Serie" AS "numeroSerie", 
+          m.inf_tecnica AS "infoTecnica",  
+          m.link_fich_tecn AS "enlaceFichaTecnica",
+          ma.marca AS "marcaNombre",
+          t.nombre_tipo_equipo AS "tipoNombre"
+        FROM "Modelos_Equipos" m
+        LEFT JOIN "Marcas_Equipos" ma ON m.id_marca = ma.id_marca
+        LEFT JOIN "Tipos_Equipos" t ON m.id_tipo_equipo = t.id_tipo_equipo
+        ORDER BY m.id_modelo ASC
+      `),
+      db.query('SELECT id_marca, marca AS "marcaNombre" FROM "Marcas_Equipos" ORDER BY marca ASC'),
+      db.query('SELECT id_tipo_equipo, nombre_tipo_equipo AS "tipoNombre" FROM "Tipos_Equipos" ORDER BY nombre_tipo_equipo ASC'),
+      db.query(`
+        SELECT 
+          id_repuesto AS "id", 
+          tipo_repuesto AS "nombre", 
+          modelo_repuesto AS "codigoParte", 
+          inf_tecnica AS "infoTecnica" 
+        FROM "Lista_Repuestos" 
+        ORDER BY tipo_repuesto ASC
+      `),
+      // 🛠️ ESTA ES LA CONSULTA QUE FALTABA DECLARAR:
+      db.query('SELECT id_repuesto_modelo, id_modelo, id_repuesto FROM "Repuesto_Modelo"')
+    ]);
 
-      res.json({
-        marcas: listaMarcas.rows,
-        modelos: resultadosModelos.rows,
-        tiposEquipo: listaTipos.rows
-      });
-    } catch (err) {
-      console.error('Database Error en Equipos Dashboard:', err && err.stack ? err.stack : err);
-      res.status(500).json({ error: 'Error consultando los datos de modelos de equipos en la base de datos' });
-    }
+    res.json({
+      marcas: listaMarcas.rows,
+      modelos: resultadosModelos.rows,
+      tiposEquipo: listaTipos.rows,
+      repuestos: listaRepuestos.rows,
+      links: linksQuery.rows // 🛠️ Ahora sí existirá la variable sin dar ReferenceError
+    });
+  } catch (err) {
+    console.error('Database Error en modelos Dashboard:', err && err.stack ? err.stack : err);
+    res.status(500).json({ error: 'Error consultando los datos de modelos de equipos en la base de datos' });
   }
-
+}
 // ==========================================
 // 2. CREAR MODELO (CORREGIDO)
 // ==========================================
@@ -150,7 +165,7 @@ export async function asociarRepuesto(req, res) {
       const insertRepuestoQuery = `
         INSERT INTO "Lista_Repuestos" (tipo_repuesto, modelo_repuesto, inf_tecnica)
         VALUES ($1, $2, $3) 
-        RETURNING id_repuesto, tipo_repuesto AS nombre, modelo_repuesto AS codigoParte, inf_tecnica AS infoTecnica;
+        RETURNING id_repuesto, tipo_repuesto AS "nombre", modelo_repuesto AS "codigoParte", inf_tecnica AS "infoTecnica";
       `;
       const resRepuesto = await client.query(insertRepuestoQuery, [
         nuevoRepuesto.nombre,      

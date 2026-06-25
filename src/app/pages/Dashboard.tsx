@@ -7,7 +7,8 @@ import { Users, Truck, Box, TrendingUp, Building2, MapPin } from 'lucide-react';
 import { Cliente, Equipo, Modelo, TipoEquipo, ESTADOS } from '../data/mockData';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { getClientesApi } from '../services/clientesApi';
-import { Clientes } from './Clientes'; 
+import { getEquiposInitData } from '../services/equiposApi';
+import { getModelosApi } from '../services/modelosApi';
 
 export function Dashboard() {
   const [selectedEstado, setSelectedEstado] = useState<string>('todos');
@@ -19,24 +20,26 @@ export function Dashboard() {
   const [tiposEquipo, setTiposEquipo] = useState<TipoEquipo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [clientesData, equiposData, modelosData, tiposData] = await Promise.all([
-          getClientes(),
-          getEquipos(),
-          getModelos(),
-          getTiposEquipo(),
+        setLoading(true);
+        const [clientesData, equiposData, modelosData] = await Promise.all([
+          getClientesApi(),
+          getEquiposInitData(),
+          getModelosApi(),
         ]);
 
-        setClientes(clientesData);
-        setEquipos(equiposData);
-        setModelos(modelosData);
-        setTiposEquipo(tiposData);
+        setClientes(clientesData || []);
+        setEquipos(equiposData.equipos || []);
+        setModelos(modelosData.modelos || []);
+        setTiposEquipo(modelosData.tiposEquipo || []);
+
       } catch (err) {
-        console.error(err);
-        setError('No se pudo cargar los datos del dashboard.');
+        console.error("Error al poblar el Dashboard Real:", err);
+        setError('No se pudo cargar los datos en tiempo real del servidor.');
       } finally {
         setLoading(false);
       }
@@ -45,21 +48,33 @@ export function Dashboard() {
     loadData();
   }, []);
 
-  const filteredClientes = useMemo(() => {
-    let filtered = [...clientes];
-    if (selectedEstado !== 'todos') {
-      filtered = filtered.filter(c => c.estado === selectedEstado);
-    }
-    return filtered;
-  }, [selectedEstado]);
+  // 1. Primero calculamos los equipos filtrados por tipo
+const filteredEquipos = useMemo(() => {
+  let filtered = [...equipos];
+  if (selectedTipo !== 'todos') {
+    filtered = filtered.filter(e => String(e.tipoEquipoId) === String(selectedTipo));
+  }
+  return filtered;
+}, [selectedTipo, equipos]);
 
-  const filteredEquipos = useMemo(() => {
-    let filtered = [...equipos];
-    if (selectedTipo !== 'todos') {
-      filtered = filtered.filter(e => e.tipoEquipoId === selectedTipo);
-    }
-    return filtered;
-  }, [selectedTipo]);
+// 2. Usamos los equipos para restringir la lista de clientes si hay un tipo seleccionado
+const filteredClientes = useMemo(() => {
+  let filtered = [...clientes];
+
+  // Filtro por Estado (el que ya tenías)
+  if (selectedEstado !== 'todos') {
+    filtered = filtered.filter(c => c.estado === selectedEstado);
+  }
+  if (selectedTipo !== 'todos') {
+    // Obtenemos un Set con todos los clienteId únicos que poseen el tipo de equipo seleccionado
+    const clientesConEseTipo = new Set(
+      filteredEquipos.map(equipo => String(equipo.clienteId))
+    );
+    
+    filtered = filtered.filter(c => clientesConEseTipo.has(String(c.id)));
+  }
+  return filtered;
+}, [selectedEstado, selectedTipo, clientes, filteredEquipos]);
 
   const stats = [
     {
@@ -169,7 +184,7 @@ export function Dashboard() {
                 <SelectContent>
                   <SelectItem value="todos">Todos los tipos</SelectItem>
                   {tiposEquipo.map(tipo => (
-                    <SelectItem key={tipo.id} value={tipo.id}>{tipo.nombre}</SelectItem>
+                    <SelectItem key={tipo.id} value={tipo.id}>{tipo.tipoNombre}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

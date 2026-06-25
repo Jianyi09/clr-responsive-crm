@@ -6,7 +6,6 @@ import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { ChevronDown, Save } from 'lucide-react';
 import { type Repuesto, type RepuestoModelo, type Modelo } from '../../data/mockData';
-// ELIMINADO: Ya no dependemos de la importación estática de 'marcas'
 
 type SaveResult =
   | { tipo: 'existing'; link: RepuestoModelo }

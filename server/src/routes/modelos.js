@@ -3,24 +3,25 @@ import { getAllModelos, createModelo, updateModelo, deleteModelo, asociarRepuest
 
 const router = express.Router();
 
-// 1. OBTENER TODOS LOS MODELOS
-// Endpoint: GET /api/modelos
 router.get('/dashboard', getAllModelos);
 
-// 2. CREAR MODELO
-// Endpoint: POST /api/modelos
+router.get('/repuestos/links', async (req, res) => {
+  try {
+    const basePool = req.db || pool;
+    const result = await basePool.query('SELECT * FROM "Repuesto_Modelo"');
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al obtener los enlaces' });
+  }
+});
+
+router.post('/:id/repuestos', asociarRepuesto);
+
 router.post('/', createModelo);
 
-// 3. ACTUALIZAR MODELO
-// Endpoint: PUT /api/modelos/:id
 router.put('/:id', updateModelo);
 
-// 4. ELIMINAR MODELO
-// Endpoint: DELETE /api/modelos/:id
 router.delete('/:id', deleteModelo);
-
-// 5. ASOCIAR REPUESTO EXISTENTE O NUEVO
-// Endpoint: POST /api/modelos/:id/repuestos
-router.post('/:id/repuestos', asociarRepuesto);
 
 export default router;
