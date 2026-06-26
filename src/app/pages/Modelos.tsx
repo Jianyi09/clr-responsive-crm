@@ -299,7 +299,7 @@ const handleDeleteModelo = async (id: string) => {
   // RENDERIZADO DE ALERTAS / PANTALLAS DE CONTROL
   // ==========================================
   if (loading) {
-    return <div className="py-10 text-center text-gray-600">Cargando modelos...</div>;
+    return <div className="py-10 text-center text-gray-100">Cargando modelos...</div>;
   }
 
   if (error) {
@@ -312,7 +312,7 @@ const handleDeleteModelo = async (id: string) => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-3xl font-bold text-gray-900">Modelos</h2>
-          <p className="text-gray-600 mt-1">
+          <p className="text-gray-100 mt-1">
             {filteredModelos.length} modelo{filteredModelos.length !== 1 ? 's' : ''} registrado{filteredModelos.length !== 1 ? 's' : ''}
           </p>
         </div>

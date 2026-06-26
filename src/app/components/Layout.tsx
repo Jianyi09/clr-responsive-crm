@@ -29,7 +29,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div
-      className="min-h-screen bg-slate-50"
+      className="min-h-screen bg-cover bg-center bg-no-repeat bg-fixed"
+  style={{ backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.33), rgba(77, 66, 107, 0.3)), url('/img/fondo_sistema_acess.png')` }} 
     >
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">

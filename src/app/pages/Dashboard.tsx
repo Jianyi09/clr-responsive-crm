@@ -4,9 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Users, Truck, Box, TrendingUp, Building2, MapPin } from 'lucide-react';
-import { Cliente, Equipo, Modelo, TipoEquipo, ESTADOS } from '../data/mockData';
+import { Cliente, Equipo, Modelo, TipoEquipo } from '../data/mockData'; 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { getClientesApi } from '../services/clientesApi';
+import { getClientesApi, getEstadosApi } from '../services/clientesApi';
 import { getEquiposInitData } from '../services/equiposApi';
 import { getModelosApi } from '../services/modelosApi';
 
@@ -18,24 +18,27 @@ export function Dashboard() {
   const [equipos, setEquipos] = useState<Equipo[]>([]);
   const [modelos, setModelos] = useState<Modelo[]>([]);
   const [tiposEquipo, setTiposEquipo] = useState<TipoEquipo[]>([]);
+  const [estadosDb, setEstadosDb] = useState<string[]>([]);
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
 
   useEffect(() => {
     async function loadData() {
       try {
         setLoading(true);
-        const [clientesData, equiposData, modelosData] = await Promise.all([
+        const [clientesData, equiposData, modelosData, estadosData] = await Promise.all([
           getClientesApi(),
           getEquiposInitData(),
           getModelosApi(),
+          getEstadosApi(), 
         ]);
 
         setClientes(clientesData || []);
-        setEquipos(equiposData.equipos || []);
+        setEquipos(equiposData.equipos || []); 
         setModelos(modelosData.modelos || []);
         setTiposEquipo(modelosData.tiposEquipo || []);
+        setEstadosDb(estadosData || []);
 
       } catch (err) {
         console.error("Error al poblar el Dashboard Real:", err);
@@ -48,14 +51,22 @@ export function Dashboard() {
     loadData();
   }, []);
 
-  // 1. Primero calculamos los equipos filtrados por tipo
 const filteredEquipos = useMemo(() => {
   let filtered = [...equipos];
   if (selectedTipo !== 'todos') {
     filtered = filtered.filter(e => String(e.tipoEquipoId) === String(selectedTipo));
   }
+
+  if (selectedEstado !== 'todos') {
+    const clientesDelEstado = new Set(
+      clientes.filter(c => c.estado === selectedEstado).map(c => String(c.id))
+    );
+
+    filtered = filtered.filter(e => clientesDelEstado.has(String(e.clienteId)));
+  }
+
   return filtered;
-}, [selectedTipo, equipos]);
+}, [selectedTipo, selectedEstado, equipos, clientes]);
 
 // 2. Usamos los equipos para restringir la lista de clientes si hay un tipo seleccionado
 const filteredClientes = useMemo(() => {
@@ -83,7 +94,7 @@ const filteredClientes = useMemo(() => {
       icon: Users,
       color: 'text-[#0066CC]',
       bgColor: 'bg-[#0066CC]/10',
-      link: '/clientes',
+      link: `/clientes?estado=${encodeURIComponent(selectedEstado)}&tipo=${encodeURIComponent(selectedTipo)}`,
     },
     {
       title: 'Total Equipos',
@@ -91,7 +102,7 @@ const filteredClientes = useMemo(() => {
       icon: Truck,
       color: 'text-[#FF6B35]',
       bgColor: 'bg-[#FF6B35]/10',
-      link: '/equipos',
+      link: `/equipos?estado=${encodeURIComponent(selectedEstado)}&tipo=${encodeURIComponent(selectedTipo)}`,
     },
     {
       title: 'Modelos Registrados',
@@ -113,7 +124,7 @@ const filteredClientes = useMemo(() => {
 
   if (loading) {
     return (
-      <div className="py-10 text-center text-gray-600">Cargando dashboard...</div>
+      <div className="py-10 text-center text-gray-200">Cargando dashboard...</div>
     );
   }
 
@@ -128,7 +139,7 @@ const filteredClientes = useMemo(() => {
       {/* Header */}
       <div>
         <h2 className="text-3xl font-bold text-gray-900">Dashboard</h2>
-        <p className="text-gray-600 mt-1">Vista general del sistema de gestión de flota</p>
+        <p className="text-gray-100 mt-1">Vista general del sistema de gestión de flota</p>
       </div>
 
       {/* Stats Cards */}
@@ -168,7 +179,7 @@ const filteredClientes = useMemo(() => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todos">Todos los estados</SelectItem>
-                  {ESTADOS.map(estado => (
+                  {estadosDb.map(estado => (
                     <SelectItem key={estado} value={estado}>{estado}</SelectItem>
                   ))}
                 </SelectContent>

@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import { useSearchParams } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
@@ -24,6 +25,10 @@ import { saveMarcaApi } from '../services/marcasApi';
 
 export function Equipos() {
   const { isAdmin } = useAuth();
+  const [searchParams] = useSearchParams();
+
+  const [selectedEstado] = useState<string>(searchParams.get('estado') || 'todos');
+  const [selectedTipo] = useState<string>(searchParams.get('tipo') || 'todos');
   
   // Estados de datos reales de la Base de Datos
   const [equipos, setEquipos] = useState<Equipo[]>([]);
@@ -51,16 +56,18 @@ export function Equipos() {
   const [repuestosEquipo, setRepuestosEquipo] = useState<Equipo | null>(null);
   const [isRepuestosModalOpen, setIsRepuestosModalOpen] = useState(false);
 
-  // Carga inicial conectada al Puente Backend-Frontend
-  // Carga inicial conectada al Puente Backend-Frontend
+  // Carga inicial conectada al Puente Backend-Frontend - Ahora reacciona a los filtros de la URL
   useEffect(() => {
     async function loadData() {
       try {
         setLoading(true);
-        const [dashboardData, modelosData] = await Promise.all([
-          getEquiposInitData(),
-          getModelosApi(), // Este endpoint retorna un objeto con { modelos, repuestos, links }
-        ]);
+        
+        // Pasamos las selecciones actuales de la URL a tu servicio de la API
+        const dashboardData = await getEquiposInitData({
+          estado: selectedEstado,
+          tipoEquipo: selectedTipo
+        });
+        const modelosData = await getModelosApi();
 
         // 1. Poblamos datos maestros de Equipos
         setEquipos(dashboardData.equipos);
@@ -71,8 +78,7 @@ export function Equipos() {
         // 2. Poblamos la lista de Modelos real
         setModelosList(modelosData.modelos || []);
 
-        // 3. 🛠️ CORRECCIÓN CRÍTICA: Guardamos las relaciones intermedias (links)
-        // Nota: Revisa si tu backend lo llamó 'links' o 'repuestosModelos' en la respuesta JSON
+        // 3. Guardamos las relaciones intermedias (links)
         setRepuestosState(modelosData.links || []); 
         setListaRepuestos(modelosData.repuestos || []);
         
@@ -85,23 +91,34 @@ export function Equipos() {
     }
 
     loadData();
-  }, []);
+  }, [selectedEstado, selectedTipo]); 
 
   // Filtrado de clientes estructurado
-  const clientesConEquipos = useMemo(() => {
-    const clienteIds = new Set(equipos.map(e => e.clienteId));
-    return clientesList.filter(c => soloConEquipos ? clienteIds.has(c.id) : true);
-  }, [soloConEquipos, equipos, clientesList]);
+  // Filtrado de clientes estructurado
 
-  // Buscador inteligente unificado de Figma
+  const clientesConEquipos = useMemo(() => {
+  // El backend ya nos envía los clientes filtrados por estado si corresponde.
+  // Solo aplicamos el filtro local de "soloConEquipos" si está activo.
+  if (soloConEquipos) {
+    const clienteIds = new Set(equipos.map(e => e.clienteId));
+    return clientesList.filter(c => clienteIds.has(c.id));
+  }
+  
+  return clientesList;
+}, [soloConEquipos, equipos, clientesList]);
+
   const filteredData = useMemo(() => {
     const query = searchQuery.toLowerCase();
+    return clientesConEquipos.map(cliente => {
+      let clienteEquipos = equipos.filter(e => e.clienteId === cliente.id);
 
-    const filtered = clientesConEquipos.map(cliente => {
-      const clienteEquipos = equipos.filter(e => e.clienteId === cliente.id);
+      if (selectedTipo !== 'todos') {
+        clienteEquipos = clienteEquipos.filter(e => String(e.tipoEquipoId) === String(selectedTipo));
+      }
 
       if (!searchQuery) {
         return { cliente, equipos: clienteEquipos };
+
       }
 
       const matchingEquipos = clienteEquipos.filter(equipo => {
@@ -119,12 +136,10 @@ export function Equipos() {
           cliente.razonSocial.toLowerCase().includes(query)
         );
       });
-
       return { cliente, equipos: matchingEquipos };
     }).filter(item => item.equipos.length > 0);
+  }, [clientesConEquipos, equipos, searchQuery, marcasList, modelosList, tiposEquipo, selectedTipo]);
 
-    return filtered;
-  }, [clientesConEquipos, equipos, searchQuery, marcasList, modelosList]);
 
   // Agrupación por Tipo de Equipo
   const groupedByTipo = useMemo(() => {
@@ -239,7 +254,9 @@ export function Equipos() {
   };
   const handleAddNewRepuesto = (_repuesto: Repuesto, _link: RepuestoModelo) => {};
 
-  const totalEquipos = equipos.length;
+  const totalEquipos = useMemo(() => {
+    return filteredData.reduce((acc, item) => acc + item.equipos.length, 0);
+  }, [filteredData]);
 
   // Busca el modelo asociado al equipo activo en el modal de repuestos
   const modeloForRepuestos = repuestosEquipo
@@ -250,7 +267,7 @@ export function Equipos() {
     repuestosState.filter(rm => String(rm.modeloId) === String(modeloId)).length;
 
   if (loading) {
-    return <div className="py-10 text-center text-gray-600">Cargando la flota de equipos reales...</div>;
+    return <div className="py-10 text-center text-gray-100">Cargando la flota de equipos reales...</div>;
   }
 
   if (error) {
@@ -263,7 +280,7 @@ export function Equipos() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-3xl font-bold text-gray-900">Reporte de Equipos</h2>
-          <p className="text-gray-600 mt-1">
+          <p className="text-gray-100 mt-1">
             {totalEquipos} equipo{totalEquipos !== 1 ? 's' : ''} registrado{totalEquipos !== 1 ? 's' : ''}
           </p>
         </div>

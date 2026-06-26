@@ -1,12 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Truck, Edit, Trash2, X, Save, AlertCircle } from 'lucide-react';
+import { Truck, Edit, Trash2, X, Save, AlertCircle, ChevronDown } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { type Cliente, type Equipo, type Marca, type Modelo, type TipoEquipo } from '../../data/mockData';
 import { toast } from 'sonner';
@@ -61,18 +60,31 @@ export function EquipoModal({
     infoTecnica: '',
   });
 
+  // Estados de texto para los inputs
   const [clienteInput, setClienteInput] = useState('');
+  const [tipoInput, setTipoInput] = useState('');
   const [marcaInput, setMarcaInput] = useState('');
   const [modeloInput, setModeloInput] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Estados de control de visibilidad de los dropdowns flotantes
+  const [showClienteDropdown, setShowClienteDropdown] = useState(false);
+  const [showTipoDropdown, setShowTipoDropdown] = useState(false);
+  const [showMarcaDropdown, setShowMarcaDropdown] = useState(false);
+  const [showModeloDropdown, setShowModeloDropdown] = useState(false);
+
+  // Referencias DOM para detectar clics exteriores
+  const clienteRef = useRef<HTMLDivElement>(null);
+  const tipoRef = useRef<HTMLDivElement>(null);
+  const marcaRef = useRef<HTMLDivElement>(null);
+  const modeloRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
 
     if (isCreating) {
       setMode('edit');
-      // Solamente inicializamos si el formulario está completamente vacío (evita sobreescritura)
-      setFormData(prev => prev.clienteId ? prev : {
+      setFormData({
         clienteId: '',
         tipoEquipoId: '',
         marcaId: '',
@@ -82,104 +94,174 @@ export function EquipoModal({
         serial: '',
         infoTecnica: '',
       });
+      setClienteInput('');
+      setTipoInput('');
+      setMarcaInput('');
+      setModeloInput('');
       setErrors({});
     } else if (equipo) {
       setMode('view');
+      
+      const cId = String(equipo.clienteId || (equipo as any).id_cliente || '');
+      const tId = String(equipo.tipoEquipoId || (equipo as any).id_tipo_equipo || '');
+      const mId = String(equipo.marcaId || (equipo as any).id_marca || '');
+      const moId = String(equipo.modeloId || (equipo as any).id_modelo || '');
+
       setFormData({
-        clienteId: equipo.clienteId || '',
-        tipoEquipoId: equipo.tipoEquipoId || '',
-        marcaId: equipo.marcaId || '',
-        modeloId: equipo.modeloId || '',
+        clienteId: cId,
+        tipoEquipoId: tId,
+        marcaId: mId,
+        modeloId: moId,
         aliasInterno: equipo.aliasInterno || '',
         observacion: equipo.observacion || '',
         serial: equipo.serial || '',
         infoTecnica: equipo.infoTecnica || '',
       });
-      const marca = marcasList.find(m => m.id === equipo.marcaId);
-      const modelo = modelosList.find(m => m.id === equipo.modeloId);
-      setMarcaInput(marca?.marcaNombre || '');
-      setModeloInput(modelo?.nombre || '');
+
+      const cli = clientes.find(c => String(c.id || (c as any).id_cliente) === cId);
+      const tip = tiposEquipo.find(t => String(t.id || (t as any).id_tipo_equipo) === tId);
+      const mar = marcasList.find(m => String(m.id || (m as any).id_marca) === mId);
+      const mod = modelosList.find(m => String(m.id || (m as any).id_modelo) === moId);
+
+      setClienteInput(cli?.razonSocial || (cli as any)?.razon_social || '');
+      setTipoInput(tip?.tipoNombre || (tip as any)?.tipo_nombre || '');
+      setMarcaInput(mar?.marcaNombre || (equipo as any).marcaNombre || '');
+      setModeloInput(mod?.nombre || (equipo as any).nombre || '');
       setErrors({});
     }
-  }, [equipo, isCreating, isOpen]);
+  }, [equipo, isCreating, isOpen, clientes, tiposEquipo, marcasList, modelosList]);
 
+  // Manejador global de clicks externos para cerrar listas flotantes
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (clienteRef.current && !clienteRef.current.contains(event.target as Node)) {
+        setShowClienteDropdown(false);
+      }
+      if (tipoRef.current && !tipoRef.current.contains(event.target as Node)) {
+        setShowTipoDropdown(false);
+      }
+      if (marcaRef.current && !marcaRef.current.contains(event.target as Node)) {
+        setShowMarcaDropdown(false);
+      }
+      if (modeloRef.current && !modeloRef.current.contains(event.target as Node)) {
+        setShowModeloDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Lógica de filtrado de Modelos según Marca y Tipo elegidos
   const modelosDisponibles = useMemo(() => {
-    return modelosList.filter(
-      m => m.marcaId === formData.marcaId && m.tipoEquipoId === formData.tipoEquipoId
-    );
+    return modelosList.filter(m => {
+      const mId = String(m.marcaId || (m as any).id_marca || '');
+      const tId = String(m.tipoEquipoId || (m as any).id_tipo_equipo || '');
+      return mId === String(formData.marcaId) && tId === String(formData.tipoEquipoId);
+    });
   }, [modelosList, formData.marcaId, formData.tipoEquipoId]);
 
+  // CONTROLADORES DE CLIENTE
+  const handleClienteInputChange = (value: string) => {
+    setClienteInput(value);
+    const cli = clientes.find(c => (c.razonSocial || (c as any).razon_social || '').toLowerCase() === value.toLowerCase());
+    if (cli) {
+      setFormData(prev => ({ ...prev, clienteId: String(cli.id || (cli as any).id_cliente) }));
+    } else {
+      setFormData(prev => ({ ...prev, clienteId: '' }));
+    }
+  };
+
+  // CONTROLADORES DE TIPO DE EQUIPO
+  const handleTipoInputChange = (value: string) => {
+    setTipoInput(value);
+    const tip = tiposEquipo.find(t => (t.tipoNombre || (t as any).tipo_nombre || '').toLowerCase() === value.toLowerCase());
+    if (tip) {
+      setFormData(prev => ({ ...prev, tipoEquipoId: String(tip.id || (tip as any).id_tipo_equipo), modeloId: '' }));
+      setModeloInput('');
+    } else {
+      setFormData(prev => ({ ...prev, tipoEquipoId: '', modeloId: '' }));
+      setModeloInput('');
+    }
+  };
+
+  // CONTROLADORES DE MARCA
   const handleMarcaInputChange = (value: string) => {
     setMarcaInput(value);
     const marca = marcasList.find(m => m.marcaNombre.toLowerCase() === value.toLowerCase());
     if (marca) {
-      setFormData(prev => ({ ...prev, marcaId: marca.id }));
+      const idReal = String(marca.id || (marca as any).id_marca);
+      setFormData(prev => ({ ...prev, marcaId: idReal, modeloId: '' }));
+      setModeloInput('');
     } else {
-      setFormData(prev => ({ ...prev, marcaId: '' }));
+      setFormData(prev => ({ ...prev, marcaId: '', modeloId: '' }));
+      setModeloInput('');
     }
   };
 
   const handleMarcaInputBlur = () => {
-    if (marcaInput && !formData.marcaId) {
-      const exists = marcasList.some(m => m.marcaNombre.toLowerCase() === marcaInput.toLowerCase());
-      if (!exists) {
-        setNewMarcaName(marcaInput);
-        setShowMarcaDialog(true);
+    setTimeout(() => {
+      if (marcaInput && !formData.marcaId) {
+        const exists = marcasList.some(m => m.marcaNombre.toLowerCase() === marcaInput.toLowerCase());
+        if (!exists) {
+          setNewMarcaName(marcaInput);
+          setShowMarcaDialog(true);
+        }
       }
-    }
+    }, 180);
   };
 
   const handleCreateMarca = async () => {
     if (!newMarcaName.trim()) return;
-
     try {
-      // 1. Enviamos el nombre de la marca y esperamos el objeto real con el ID de la Base de Datos
       const marcaGuardada = await onAddMarcaAsync({ marcaNombre: newMarcaName } as any);
+      const idReal = String(marcaGuardada.id || (marcaGuardada as any).id_marca);
       
-      // 2. Asociamos el ID y texto legítimo al formulario
-      setFormData(prev => ({ ...prev, marcaId: marcaGuardada.id }));
+      setFormData(prev => ({ ...prev, marcaId: idReal }));
       setMarcaInput(marcaGuardada.marcaNombre || (marcaGuardada as any).marca_nombre || newMarcaName);
       
       setShowMarcaDialog(false);
       setNewMarcaName('');
-      toast.success(`Marca "${marcaGuardada.marcaNombre}" creada exitosamente`);
+      toast.success(`Marca "${marcaGuardada.marcaNombre || newMarcaName}" creada exitosamente`);
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || 'Error al intentar guardar la marca en el servidor.');
+      toast.error(err.message || 'Error al intentar guardar la marca.');
     }
   };
 
+  // CONTROLADORES DE MODELO
   const handleModeloInputChange = (value: string) => {
     setModeloInput(value);
     const modelo = modelosDisponibles.find(m => m.nombre.toLowerCase() === value.toLowerCase());
     if (modelo) {
-      setFormData(prev => ({ ...prev, modeloId: modelo.id }));
+      const idReal = String(modelo.id || (modelo as any).id_modelo);
+      setFormData(prev => ({ ...prev, modeloId: idReal }));
     } else {
       setFormData(prev => ({ ...prev, modeloId: '' }));
     }
   };
 
   const handleModeloInputBlur = () => {
-    if (modeloInput && !formData.modeloId && formData.marcaId && formData.tipoEquipoId) {
-      const exists = modelosDisponibles.some(m => m.nombre.toLowerCase() === modeloInput.toLowerCase());
-      if (!exists) {
-        setNewModeloName(modeloInput);
-        setShowModeloDialog(true);
+    setTimeout(() => {
+      if (modeloInput && !formData.modeloId && formData.marcaId && formData.tipoEquipoId) {
+        const exists = modelosDisponibles.some(m => m.nombre.toLowerCase() === modeloInput.toLowerCase());
+        if (!exists) {
+          setNewModeloName(modeloInput);
+          setShowModeloDialog(true);
+        }
       }
-    }
+    }, 180);
   };
 
   const handleCreateModelo = async () => {
     try {
       if (!formData.marcaId || !formData.tipoEquipoId) {
-        toast.error('Debe seleccionar una Marca y un Tipo de equipo antes de registrar un nuevo modelo');
+        toast.error('Debe seleccionar una Marca y un Tipo de equipo antes de registrar un modelo.');
         return;
       }
 
-      const nombreMarca = marcasList.find(m => String((m as any).id_marca || m.id) === String(formData.marcaId))?.marcaNombre || 'Sin Marca';
-      const nombreTipo = tiposEquipo.find(t => String((t as any).id_tipo_equipo || t.id) === String(formData.tipoEquipoId))?.tipoNombre || 'Sin Tipo';
+      const nombreMarca = marcasList.find(m => String(m.id || (m as any).id_marca) === String(formData.marcaId))?.marcaNombre || 'Sin Marca';
+      const nombreTipo = tiposEquipo.find(t => String(t.id || (t as any).id_tipo_equipo) === String(formData.tipoEquipoId))?.tipoNombre || 'Sin Tipo';
 
-      // 1. Preparamos el payload sin mandar un ID temporal
       const nuevoModeloPayload: Omit<Modelo, 'id'> = {
         nombre: newModeloName,
         marcaId: formData.marcaId,
@@ -192,11 +274,10 @@ export function EquipoModal({
         tipoNombre: nombreTipo   
       };
       
-      // 2. Disparamos la mutación asíncrona hacia el servicio
       const modeloGuardado = await onAddModeloAsync(nuevoModeloPayload);
+      const idReal = String(modeloGuardado.id || (modeloGuardado as any).id_modelo);
       
-      // 3. Seteamos los estados del input con la respuesta real del backend
-      setFormData(prev => ({ ...prev, modeloId: modeloGuardado.id }));
+      setFormData(prev => ({ ...prev, modeloId: idReal }));
       setModeloInput(modeloGuardado.nombre);
       
       setShowModeloDialog(false);
@@ -204,38 +285,25 @@ export function EquipoModal({
       toast.success(`Modelo "${modeloGuardado.nombre}" creado exitosamente`);
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || 'Error al intentar guardar el modelo en el servidor.');
+      toast.error(err.message || 'Error al intentar guardar el modelo.');
     }
   };
-    
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.clienteId) {
-      newErrors.clienteId = 'El cliente es requerido';
-    }
-    if (!formData.tipoEquipoId) {
-      newErrors.tipoEquipoId = 'El tipo de equipo es requerido';
-    }
-    if (!formData.marcaId) {
-      newErrors.marcaId = 'La marca es requerida';
-    }
-    if (!formData.modeloId) {
-      newErrors.modeloId = 'El modelo es requerido';
-    }
-    if (!formData.aliasInterno.trim()) {
-      newErrors.aliasInterno = 'El alias interno es requerido';
-    }
+    if (!formData.clienteId) newErrors.clienteId = 'El cliente es requerido y debe seleccionarse de la lista';
+    if (!formData.tipoEquipoId) newErrors.tipoEquipoId = 'El tipo de equipo es requerido y debe seleccionarse de la lista';
+    if (!formData.marcaId) newErrors.marcaId = 'La marca es requerida';
+    if (!formData.modeloId) newErrors.modeloId = 'El modelo es requerido';
+    if (!formData.aliasInterno.trim()) newErrors.aliasInterno = 'El alias interno es requerido';
     if (!formData.serial.trim()) {
       newErrors.serial = 'El serial es requerido';
     } else {
-      // Verificar duplicados
-      const isDuplicate = allEquipos.some(
-        e =>
-          e.serial === formData.serial &&
-          e.marcaId === formData.marcaId &&
-          e.id !== equipo?.id
+      const isDuplicate = allEquipos.some(e =>
+        e.serial === formData.serial &&
+        String(e.marcaId || (e as any).id_marca) === String(formData.marcaId) &&
+        e.id !== equipo?.id
       );
       if (isDuplicate) {
         newErrors.serial = 'Ya existe un equipo con este serial y marca';
@@ -251,14 +319,14 @@ export function EquipoModal({
       toast.error('Por favor, corrija los errores en el formulario');
       return;
     }
-
     onSave(formData);
     toast.success(isCreating ? 'Equipo creado exitosamente' : 'Equipo actualizado exitosamente');
   };
 
   const handleDelete = () => {
     if (equipo) {
-      onDelete(equipo.id);
+      const idAEliminar = equipo.id || (equipo as any).id_equipo;
+      onDelete(idAEliminar);
       toast.success('Equipo eliminado exitosamente');
     }
   };
@@ -269,25 +337,56 @@ export function EquipoModal({
     } else {
       setMode('view');
       if (equipo) {
-        setFormData(equipo);
-        const marca = marcasList.find(m => m.id === equipo.marcaId);
-        const modelo = modelosList.find(m => m.id === equipo.modeloId);
-        setMarcaInput(marca?.marcaNombre || '');
-        setModeloInput(modelo?.nombre || '');
+        const cId = String(equipo.clienteId || (equipo as any).id_cliente || '');
+        const tId = String(equipo.tipoEquipoId || (equipo as any).id_tipo_equipo || '');
+        const mId = String(equipo.marcaId || (equipo as any).id_marca || '');
+        const moId = String(equipo.modeloId || (equipo as any).id_modelo || '');
+
+        setFormData({
+          clienteId: cId,
+          tipoEquipoId: tId,
+          marcaId: mId,
+          modeloId: moId,
+          aliasInterno: equipo.aliasInterno || '',
+          observacion: equipo.observacion || '',
+          serial: equipo.serial || '',
+          infoTecnica: equipo.infoTecnica || '',
+        });
+        const cliObj = clientes.find(c => String(c.id || (c as any).id_cliente) === cId);
+        const tipObj = tiposEquipo.find(t => String(t.id || (t as any).id_tipo_equipo) === tId);
+        const marObj = marcasList.find(m => String(m.id || (m as any).id_marca) === mId);
+        const modObj = modelosList.find(m => String(m.id || (m as any).id_modelo) === moId);
+        
+        setClienteInput(cliObj?.razonSocial || (cliObj as any)?.razon_social || '');
+        setTipoInput(tipObj?.tipoNombre || (tipObj as any)?.tipo_nombre || '');
+        setMarcaInput(marObj?.marcaNombre || '');
+        setModeloInput(modObj?.nombre || '');
       }
       setErrors({});
     }
   };
 
-  const cliente = clientes.find(c => c.id === formData.clienteId);
-  const tipo = tiposEquipo.find(t => t.id === formData.tipoEquipoId);
-  const marca = marcasList.find(m => m.id === formData.marcaId);
-  const modelo = modelosList.find(m => m.id === formData.modeloId);
+  // Listas filtradas reactivamente según lo que tipea el usuario
+  const filteredClientes = clientes.filter(c =>
+    (c?.razonSocial || (c as any)?.razon_social || '').toLowerCase().includes((clienteInput || '').toLowerCase())
+  );
+
+  const filteredTipos = tiposEquipo.filter(t =>
+    (t?.tipoNombre || (t as any)?.tipo_nombre || '').toLowerCase().includes((tipoInput || '').toLowerCase())
+  );
+
+  const filteredMarcas = marcasList.filter(m =>
+    (m?.marcaNombre || '').toLowerCase().includes((marcaInput || '').toLowerCase())
+  );
+
+  const filteredModelos = modelosDisponibles.filter(m =>
+    (m?.nombre || '').toLowerCase().includes((modeloInput || '').toLowerCase())
+  );
 
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-visible">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Truck className="w-5 h-5 text-[#FF6B35]" />
@@ -295,14 +394,13 @@ export function EquipoModal({
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 overflow-visible">
             {mode === 'view' ? (
-              // Vista de lectura
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Cliente</p>
-                    <p className="font-medium">{cliente?.razonSocial}</p>
+                    <p className="font-medium">{clienteInput || 'No asignado'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Alias Interno</p>
@@ -310,15 +408,15 @@ export function EquipoModal({
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Tipo de Equipo</p>
-                    <p className="font-medium">{tipo?.tipoNombre}</p>
+                    <p className="font-medium">{tipoInput || 'No asignado'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Marca</p>
-                    <p className="font-medium">{marca?.marcaNombre}</p>
+                    <p className="font-medium">{marcaInput || 'Sin Marca'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Modelo</p>
-                    <p className="font-medium">{modelo?.nombre}</p>
+                    <p className="font-medium">{modeloInput || 'Sin Modelo'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Serial</p>
@@ -339,42 +437,101 @@ export function EquipoModal({
                 )}
               </div>
             ) : (
-              // Vista de edición
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="md:col-span-2">
-                    <Label htmlFor="clienteId">Cliente *</Label>
-                    <Select value={formData.clienteId} onValueChange={(value) => setFormData({ ...formData, clienteId: value })}>
-                      <SelectTrigger className={errors.clienteId ? 'border-red-500' : ''}>
-                        <SelectValue placeholder="Seleccionar cliente" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {clientes.map(c => (
-                          <SelectItem key={c.id} value={c.id}>{c.razonSocial}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+              <div className="space-y-4 overflow-visible">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-visible">
+                  
+                  {/* INPUT TIPEABLE PROFESIONAL: CLIENTES */}
+                  <div className="md:col-span-2 relative" ref={clienteRef}>
+                    <Label htmlFor="cliente">Cliente *</Label>
+                    <div className="relative flex items-center">
+                      <Input
+                        id="cliente"
+                        value={clienteInput}
+                        onChange={(e) => handleClienteInputChange(e.target.value)}
+                        onFocus={() => {
+                          setShowClienteDropdown(true);
+                          setShowTipoDropdown(false);
+                          setShowMarcaDropdown(false);
+                          setShowModeloDropdown(false);
+                        }}
+                        placeholder="Escriba para buscar cliente..."
+                        className={errors.clienteId ? 'border-red-500 pr-8 bg-gray-50/50' : 'pr-8 bg-gray-50/50'}
+                      />
+                      <ChevronDown className="absolute right-2.5 w-4 h-4 text-gray-400 pointer-events-none" />
+                    </div>
+                    {showClienteDropdown && (
+                      <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto py-1">
+                        {filteredClientes.length > 0 ? (
+                          filteredClientes.map(c => {
+                            const idReal = String(c.id || (c as any).id_cliente);
+                            const nombreReal = c.razonSocial || (c as any).razon_social;
+                            return (
+                              <div
+                                key={idReal}
+                                className="px-3 py-2.5 cursor-pointer hover:bg-gray-100 text-sm font-normal text-gray-900 transition-colors"
+                                onMouseDown={() => {
+                                  setClienteInput(nombreReal);
+                                  setFormData(prev => ({ ...prev, clienteId: idReal }));
+                                  setShowClienteDropdown(false);
+                                }}
+                              >
+                                {nombreReal}
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="px-3 py-2.5 text-sm text-gray-400 italic text-center">No se encontraron clientes</div>
+                        )}
+                      </div>
+                    )}
                     {errors.clienteId && <p className="text-xs text-red-500 mt-1">{errors.clienteId}</p>}
                   </div>
 
-                  <div>
-                    <Label htmlFor="tipoEquipoId">Tipo de Equipo *</Label>
-                    <Select
-                      value={formData.tipoEquipoId}
-                      onValueChange={(value) => {
-                        setFormData({ ...formData, tipoEquipoId: value, modeloId: '' });
-                        setModeloInput('');
-                      }}
-                    >
-                      <SelectTrigger className={errors.tipoEquipoId ? 'border-red-500' : ''}>
-                        <SelectValue placeholder="Seleccionar tipo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {tiposEquipo.map(t => (
-                          <SelectItem key={t.id} value={t.id}>{t.tipoNombre}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  {/* INPUT TIPEABLE PROFESIONAL: TIPO DE EQUIPO */}
+                  <div className="relative" ref={tipoRef}>
+                    <Label htmlFor="tipoEquipo">Tipo de Equipo *</Label>
+                    <div className="relative flex items-center">
+                      <Input
+                        id="tipoEquipo"
+                        value={tipoInput}
+                        onChange={(e) => handleTipoInputChange(e.target.value)}
+                        onFocus={() => {
+                          setShowTipoDropdown(true);
+                          setShowClienteDropdown(false);
+                          setShowMarcaDropdown(false);
+                          setShowModeloDropdown(false);
+                        }}
+                        placeholder="Escriba para buscar tipo..."
+                        className={errors.tipoEquipoId ? 'border-red-500 pr-8 bg-gray-50/50' : 'pr-8 bg-gray-50/50'}
+                      />
+                      <ChevronDown className="absolute right-2.5 w-4 h-4 text-gray-400 pointer-events-none" />
+                    </div>
+                    {showTipoDropdown && (
+                      <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto py-1">
+                        {filteredTipos.length > 0 ? (
+                          filteredTipos.map(t => {
+                            const idReal = String(t.id || (t as any).id_tipo_equipo);
+                            const nombreReal = t.tipoNombre || (t as any).tipo_nombre;
+                            return (
+                              <div
+                                key={idReal}
+                                className="px-3 py-2.5 cursor-pointer hover:bg-gray-100 text-sm font-normal text-gray-900 transition-colors"
+                                onMouseDown={() => {
+                                  setTipoInput(nombreReal);
+                                  setFormData(prev => ({ ...prev, tipoEquipoId: idReal, modeloId: '' }));
+                                  setModeloInput('');
+                                  setShowTipoDropdown(false);
+                                }}
+                              >
+                                {nombreReal}
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="px-3 py-2.5 text-sm text-gray-400 italic text-center">No se encontraron tipos</div>
+                        )}
+                      </div>
+                    )}
                     {errors.tipoEquipoId && <p className="text-xs text-red-500 mt-1">{errors.tipoEquipoId}</p>}
                   </div>
 
@@ -390,46 +547,101 @@ export function EquipoModal({
                     {errors.aliasInterno && <p className="text-xs text-red-500 mt-1">{errors.aliasInterno}</p>}
                   </div>
 
-                  <div>
+                  {/* INPUT TIPEABLE PROFESIONAL: MARCA */}
+                  <div className="relative" ref={marcaRef}>
                     <Label htmlFor="marca">Marca *</Label>
-                    <div className="relative">
+                    <div className="relative flex items-center">
                       <Input
                         id="marca"
                         value={marcaInput}
                         onChange={(e) => handleMarcaInputChange(e.target.value)}
                         onBlur={handleMarcaInputBlur}
+                        onFocus={() => {
+                          setShowMarcaDropdown(true);
+                          setShowClienteDropdown(false);
+                          setShowTipoDropdown(false);
+                          setShowModeloDropdown(false);
+                        }}
                         placeholder="Escriba o seleccione"
-                        list="marcas-list"
-                        className={errors.marcaId ? 'border-red-500' : ''}
+                        className={errors.marcaId ? 'border-red-500 pr-8 bg-gray-50/50' : 'pr-8 bg-gray-50/50'}
                       />
-                      <datalist id="marcas-list">
-                        {marcasList.map(m => (
-                          <option key={m.id} value={m.marcaNombre} />
-                        ))}
-                      </datalist>
+                      <ChevronDown className="absolute right-2.5 w-4 h-4 text-gray-400 pointer-events-none" />
                     </div>
+                    {showMarcaDropdown && (
+                      <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto py-1">
+                        {filteredMarcas.length > 0 ? (
+                          filteredMarcas.map(m => {
+                            const idReal = String(m.id || (m as any).id_marca);
+                            return (
+                              <div
+                                key={idReal}
+                                className="px-3 py-2.5 cursor-pointer hover:bg-gray-100 text-sm font-normal text-gray-900 transition-colors"
+                                onMouseDown={() => {
+                                  setMarcaInput(m.marcaNombre);
+                                  setFormData(prev => ({ ...prev, marcaId: idReal, modeloId: '' }));
+                                  setModeloInput('');
+                                  setShowMarcaDropdown(false);
+                                }}
+                              >
+                                {m.marcaNombre}
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="px-3 py-2.5 text-sm text-gray-400 italic text-center">No se encontraron resultados</div>
+                        )}
+                      </div>
+                    )}
                     {errors.marcaId && <p className="text-xs text-red-500 mt-1">{errors.marcaId}</p>}
                   </div>
 
-                  <div>
+                  {/* INPUT TIPEABLE PROFESIONAL: MODELO */}
+                  <div className="relative" ref={modeloRef}>
                     <Label htmlFor="modelo">Modelo *</Label>
-                    <div className="relative">
+                    <div className="relative flex items-center">
                       <Input
                         id="modelo"
                         value={modeloInput}
                         onChange={(e) => handleModeloInputChange(e.target.value)}
                         onBlur={handleModeloInputBlur}
-                        placeholder="Escriba o seleccione"
-                        list="modelos-list"
+                        onFocus={() => {
+                          if (formData.marcaId && formData.tipoEquipoId) {
+                            setShowModeloDropdown(true);
+                            setShowClienteDropdown(false);
+                            setShowTipoDropdown(false);
+                            setShowMarcaDropdown(false);
+                          }
+                        }}
+                        placeholder={formData.marcaId && formData.tipoEquipoId ? "Escriba o seleccione" : "Primero seleccione Tipo y Marca"}
                         disabled={!formData.marcaId || !formData.tipoEquipoId}
-                        className={errors.modeloId ? 'border-red-500' : ''}
+                        className={errors.modeloId ? 'border-red-500 pr-8 bg-gray-50/50' : 'pr-8 bg-gray-50/50'}
                       />
-                      <datalist id="modelos-list">
-                        {modelosDisponibles.map(m => (
-                          <option key={m.id} value={m.nombre} />
-                        ))}
-                      </datalist>
+                      <ChevronDown className="absolute right-2.5 w-4 h-4 text-gray-400 pointer-events-none" />
                     </div>
+                    {showModeloDropdown && formData.marcaId && formData.tipoEquipoId && (
+                      <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto py-1">
+                        {filteredModelos.length > 0 ? (
+                          filteredModelos.map(m => {
+                            const idReal = String(m.id || (m as any).id_modelo);
+                            return (
+                              <div
+                                key={idReal}
+                                className="px-3 py-2.5 cursor-pointer hover:bg-gray-100 text-sm font-normal text-gray-900 transition-colors"
+                                onMouseDown={() => {
+                                  setModeloInput(m.nombre);
+                                  setFormData(prev => ({ ...prev, modeloId: idReal }));
+                                  setShowModeloDropdown(false);
+                                }}
+                              >
+                                {m.nombre}
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="px-3 py-2.5 text-sm text-gray-400 italic text-center">No se encontraron resultados</div>
+                        )}
+                      </div>
+                    )}
                     {errors.modeloId && <p className="text-xs text-red-500 mt-1">{errors.modeloId}</p>}
                   </div>
 
@@ -535,7 +747,7 @@ export function EquipoModal({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setMarcaInput('')}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => { setMarcaInput(''); setFormData(prev => ({ ...prev, marcaId: '' })); }}>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleCreateMarca} className="bg-[#0066CC] hover:bg-[#0052A3]">
               Crear Marca
             </AlertDialogAction>
@@ -556,7 +768,7 @@ export function EquipoModal({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setModeloInput('')}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => { setModeloInput(''); setFormData(prev => ({ ...prev, modeloId: '' })); }}>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleCreateModelo} className="bg-[#0066CC] hover:bg-[#0052A3]">
               Crear Modelo
             </AlertDialogAction>

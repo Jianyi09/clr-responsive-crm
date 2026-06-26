@@ -1,16 +1,74 @@
 // server/src/controllers/equiposController.js
 import pool from '../db/index.js';
+import {
+  extractFilterSelections,
+  buildWhereClause
+} from '../utils/dbHelpers.js';
 
 // GET /api/equipos/dashboard
 export async function getEquiposDashboardApi(req, res) {
   try {
-    // Usamos req.db para mantener consistencia con el middleware global
     const db = req.db || pool;
 
-    // Ejecutamos en paralelo todas las consultas necesarias
+    const selections = extractFilterSelections(req.query);
+    
+    // Configuración para la Query de Equipos
+    const condicionesEquipos = [];
+    const valoresEquipos = [];
+
+    if (selections.estado && selections.estado !== 'todos') {
+      valoresEquipos.push(selections.estado);
+      condicionesEquipos.push(`Est.estado = $${valoresEquipos.length}`);
+    }
+
+    if (selections.tipoEquipo && selections.tipoEquipo !== 'todos') {
+      valoresEquipos.push(Number(selections.tipoEquipo));
+      condicionesEquipos.push(`E.id_tipo_equipo = $${valoresEquipos.length}`);
+    }
+
+    const whereClauseEquipos = buildWhereClause(condicionesEquipos);
+
+    const queryEquiposFiltrados = `
+      SELECT 
+        E.id_equipo, 
+        E.id_cliente, 
+        E.id_tipo_equipo, 
+        E.id_marca, 
+        E.id_modelo, 
+        E.alias_interno, 
+        E."Observacion" AS "observacion", 
+        E.serial, 
+        E.informacion_tecnica AS "info_tecnica" 
+      FROM "Equipos_Clientes" E
+      INNER JOIN "Clientes" C ON E.id_cliente = C.id_clientes
+      INNER JOIN "Estados" Est ON C.id_estado = Est.id_estado
+      ${whereClauseEquipos}
+      ORDER BY E.id_equipo DESC
+    `;
+
+    let queryClientesFiltrados = `
+      SELECT id_clientes, razon_social 
+      FROM "Clientes" 
+      ORDER BY razon_social ASC
+    `;
+    const valoresClientes = [];
+
+    // Si hay un estado seleccionado, limitamos también los clientes devueltos para que el front mapee correctamente
+    if (selections.estado && selections.estado !== 'todos') {
+      valoresClientes.push(selections.estado);
+      queryClientesFiltrados = `
+        SELECT C.id_clientes, C.razon_social 
+        FROM "Clientes" C
+        INNER JOIN "Estados" Est ON C.id_estado = Est.id_estado
+        WHERE Est.estado = $1
+        ORDER BY C.razon_social ASC
+      `;
+    }
+
+    // Ejecución paralela con ambas estructuras sincronizadas
     const [resultadoEquipos, resultadoClientes, resultadoMarcas, resultadoModelos, resultadoTipos] = await Promise.all([
-      db.query('SELECT id_equipo, id_cliente, id_tipo_equipo, id_marca, id_modelo, alias_interno, "Observacion" AS "observacion", serial, informacion_tecnica AS "info_tecnica" FROM "Equipos_Clientes" ORDER BY id_equipo DESC'),
-      db.query('SELECT id_clientes, razon_social FROM "Clientes" ORDER BY razon_social ASC'),
+      db.query(queryEquiposFiltrados, valoresEquipos),
+      db.query(queryClientesFiltrados, valoresClientes),
       db.query('SELECT id_marca, marca AS "marcaNombre" FROM "Marcas_Equipos" ORDER BY marca ASC'),
       db.query('SELECT id_modelo, id_marca, id_tipo_equipo, modelo AS "nombre" FROM "Modelos_Equipos" ORDER BY modelo ASC'),
       db.query('SELECT id_tipo_equipo, nombre_tipo_equipo AS "tipoNombre" FROM "Tipos_Equipos" ORDER BY nombre_tipo_equipo ASC')

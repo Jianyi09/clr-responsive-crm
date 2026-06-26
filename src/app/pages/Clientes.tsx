@@ -1,14 +1,6 @@
-// ==========================================
-// 1. IMPORTACIONES DE LIBRERÍAS Y COMPONENTES
-// ==========================================
 
-// Importamos Hooks fundamentales de React:
-// - useEffect: Para ejecutar código automáticamente (como llamar a la base de datos al cargar la página).
-// - useState: Para crear variables de estado que React vigila para redibujar la pantalla si cambian.
-// - useMemo: Para optimizar el rendimiento (ej. memorizar el resultado de un filtrado de búsqueda).
 import { useEffect, useState, useMemo } from 'react';
-
-// Importamos componentes de diseño visual prefabricados (Tarjetas, Inputs, Botones y Etiquetas)
+import { useSearchParams } from 'react-router';
 import { Card, CardContent } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
@@ -18,17 +10,19 @@ import { Badge } from '../components/ui/badge';
 import { Building2, MapPin, Phone, Mail, Search, Plus } from 'lucide-react';
 
 // Importamos la definición de tipo 'Cliente' para que TypeScript sepa qué propiedades tiene un cliente
-import { type Cliente } from '../data/mockData';
+import { type Cliente, Equipo } from '../data/mockData';
 
 // Importamos la función encargada de comunicarse con el servidor/backend para traer los datos
 // Usamos el endpoint de clientesController para obtener estado, ciudad y equipos registrados.
 import { getClientesApi, saveClienteApi, eliminarClienteApi } from '../services/clientesApi';
+import { getEquiposInitData } from '../services/equiposApi';
 
 // Importamos el componente de la ventana emergente (modal) para crear, editar o eliminar clientes
 import { ClienteModal } from '../components/modals/ClienteModal';
 
 // Importamos el Hook personalizado de autenticación para saber si el usuario actual tiene permisos
 import { useAuth } from '../context/AuthContext';
+
 
 // ==========================================
 // 2. COMPONENTE PRINCIPAL: Clientes
@@ -41,9 +35,14 @@ export function Clientes() {
   
   // Extraemos la propiedad isAdmin del contexto global de autenticación
   const { isAdmin } = useAuth();
+  const [searchParams] = useSearchParams();
+
+  const [selectedEstado] = useState<string>(searchParams.get('estado') || 'todos');
+  const [selectedTipo] = useState<string>(searchParams.get('tipo') || 'todos');
   
   // Estado principal que guarda el array con todos los clientes traídos de la base de datos
   const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [equipos, setEquipos] = useState<Equipo[]>([]);
   
   // Guarda el texto que el usuario escribe en la barra de búsqueda rápida
   const [searchQuery, setSearchQuery] = useState('');
@@ -73,24 +72,33 @@ export function Clientes() {
   // ==========================================
     // Definimos una función asíncrona interna para poder usar 'await' al llamar a la API
     useEffect(() => {
-    async function loadClientes() {
+    async function loadInitialData() {
       try {
-        const clientesData = await getClientesApi(); 
-        if (Array.isArray(clientesData)) { 
-          setClientes(clientesData); 
+        setLoading(true);
+        // Traemos clientes y equipos de forma simultánea para poder hacer filtros cruzados eficientes
+        const [clientesData, equiposData] = await Promise.all([
+          getClientesApi(),
+          getEquiposInitData()
+        ]);
+
+        if (Array.isArray(clientesData)) {
+          setClientes(clientesData);
         } else {
           setClientes([]);
           setError('El servidor devolvió un formato de datos inesperado.');
         }
+
+        if (equiposData && Array.isArray(equiposData.equipos)) {
+          setEquipos(equiposData.equipos);
+        }
       } catch (err) {
         console.error(err);
-        setError(err instanceof Error ? `No se pudo conectar al servidor: ${err.message}` : 'No se pudo cargar la lista de clientes.');
+        setError(err instanceof Error ? `No se pudo conectar al servidor: ${err.message}` : 'No se pudo cargar la información maestra.');
       } finally {
         setLoading(false);
       }
     }
-    // Ejecutamos la función inmediatamente al renderizar el componente por primera vez
-    loadClientes();
+    loadInitialData();
   }, []); // El array vacío [] asegura que esto solo ocurra UNA VEZ al cargar la página
 
   useEffect(() => {
@@ -114,15 +122,29 @@ export function Clientes() {
   // useMemo evita tener que filtrar todo el array de clientes en cada click o render innecesario.
   // Solo se vuelve a calcular si el texto de búsqueda (searchQuery) o la lista de clientes cambian.
   const filteredClientes = useMemo(() => {
-    // Si la barra de búsqueda está vacía, devuelve todos los clientes de la base de datos directamente
     if (!Array.isArray(clientes)) return [];
-    if (!searchQuery) return clientes;
     
-    const query = searchQuery.toLowerCase().trim(); // Convertimos la búsqueda a minúsculas para que no importen las mayúsculas
-    
-    // Filtramos el array buscando coincidencias en múltiples campos del objeto cliente
-    return clientes.filter(
-      (cliente) => {
+    let result = [...clientes];
+
+    // 1. Filtrado proveniente de la URL: Estado
+    if (selectedEstado !== 'todos') {
+      result = result.filter(cliente => cliente.estado === selectedEstado);
+    }
+
+    // 2. Filtrado proveniente de la URL: Tipo de Equipo (Filtro cruzado)
+    if (selectedTipo !== 'todos') {
+      // Obtenemos los equipos que cumplen con el tipo de equipo seleccionado en el Dashboard
+      const equiposFiltradosPorTipo = equipos.filter(e => String(e.tipoEquipoId) === String(selectedTipo));
+      // Creamos un Set con los IDs únicos de los clientes que poseen esos equipos
+      const clientesConEseTipo = new Set(equiposFiltradosPorTipo.map(e => String(e.clienteId)));
+      // Filtramos la lista de clientes manteniendo únicamente a los que tengan equipos de ese tipo
+      result = result.filter(cliente => clientesConEseTipo.has(String(cliente.id)));
+    }
+
+    // 3. Filtro de la barra de búsqueda por texto (El tuyo original intacto)
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase().trim();
+      result = result.filter((cliente) => {
         const razonSocial = (cliente.razonSocial || '').toLowerCase();
         const rifDni = (cliente.rifDni || '').toLowerCase();
         const contacto = (cliente.contacto || '').toLowerCase();
@@ -143,7 +165,10 @@ export function Clientes() {
           correo.includes(query)
         );
       });
-    }, [clientes, searchQuery]);
+    }
+
+    return result;
+  }, [clientes, equipos, selectedEstado, selectedTipo, searchQuery]);
   // ==========================================
   // 6. MANEJADORES DE EVENTOS (INTERACCIONES)
   // ==========================================
@@ -206,7 +231,7 @@ export function Clientes() {
   // Si la petición a la API sigue pendiente, detiene la ejecución aquí y muestra esta interfaz limpia
   if (loading) {
     return (
-      <div className="py-10 text-center text-gray-600">Cargando clientes...</div>
+      <div className="py-10 text-center text-gray-100">Cargando clientes...</div>
     );
   }
 
@@ -227,7 +252,7 @@ export function Clientes() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-3xl font-bold text-gray-900">Clientes</h2>
-          <p className="text-gray-600 mt-1">
+          <p className="text-gray-100 mt-1">
             {/* Calcula dinámicamente cuántos clientes se muestran en pantalla y maneja el plural/singular */}
             {filteredClientes.length} cliente{filteredClientes.length !== 1 ? 's' : ''} registrado{filteredClientes.length !== 1 ? 's' : ''}
           </p>

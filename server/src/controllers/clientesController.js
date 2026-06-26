@@ -208,3 +208,17 @@ export const eliminarCliente = async (req, res) => {
   }
 };
 
+export async function getEstadosLista(req, res) {
+  try {
+    const query = `SELECT estado FROM "Estados" ORDER BY estado ASC`;
+    const result = await pool.query(query);
+    
+    // Mapeamos para devolver un arreglo simple de strings: ["Aragua", "Carabobo", "Lara", ...]
+    const listaEstados = result.rows.map(row => row.estado);
+    
+    res.json(listaEstados);
+  } catch (err) {
+    console.error('Error al obtener lista de estados:', err);
+    res.status(500).json({ error: 'Error interno al consultar la lista de estados' });
+  }
+}

@@ -82,6 +82,24 @@ export async function eliminarClienteApi(id: string): Promise<void> {
   }
 }
 
-
-
+/**
+ * 4. LEER ESTADOS DESDE ENDPOINT EXCLUSIVO (GET /api/estados)
+ * Obtiene directamente el arreglo de strings con los nombres ordenados de la DB
+ */
+export async function getEstadosApi(): Promise<string[]> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/clientes/estados`);
+    
+    if (!response.ok) {
+      console.warn('La ruta de estados respondió con error, usando fallback vacío.');
+      return [];
+    }
+    
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error('Error de red al conectar con /api/clientes/estados:', error);
+    return []; 
+  }
+}
 

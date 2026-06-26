@@ -16,8 +16,21 @@ const API_BASE_URL = 'http://localhost:4000';
  * 1. LEER DATOS INICIALES DEL DASHBOARD (GET /api/equipos/dashboard)
  * Conectado con: getEquiposDashboardApi(req, res)
  */
-export async function getEquiposInitData(): Promise<EquiposDashboardPayload> {
-  const response = await fetch(`${API_BASE_URL}/api/equipos/dashboard`);
+export async function getEquiposInitData(filters?: {
+  estado?: string;
+  tipoEquipo?: string;
+}): Promise<EquiposDashboardPayload> {
+  
+  // Construimos los parámetros de búsqueda de manera dinámica si existen
+  const params = new URLSearchParams();
+  if (filters?.estado) params.append('estado', filters.estado);
+  if (filters?.tipoEquipo) params.append('tipoEquipo', filters.tipoEquipo);
+
+  // Si hay parámetros, los añadimos a la URL final, si no, se queda la URL limpia
+  const queryString = params.toString() ? `?${params.toString()}` : '';
+  const url = `${API_BASE_URL}/api/equipos/dashboard${queryString}`;
+
+  const response = await fetch(url);
   if (!response.ok) {
     const errData = await response.json().catch(() => ({}));
     throw new Error(errData.error || 'Error al obtener los datos de los equipos del servidor.');
