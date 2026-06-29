@@ -1,27 +1,21 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Box, Search, Plus, Package, Wrench, Info } from 'lucide-react';
-
-// Importación de tipos e interfaces estructuradas del Frontend
 import {
   type Marca,
   type Modelo,
-  type TipoEquipo,
   type Repuesto,
   type RepuestoModelo,
 } from '../data/mockData'; 
 
-// Importación de subcomponentes modales (Formularios y detalles)
 import { ModeloModal } from '../components/modals/ModeloModal';
 import { RepuestosModal } from '../components/modals/RepuestosModal';
-
-// Contexto global para validar permisos basados en roles de usuario (ej. Admin)
 import { useAuth } from '../context/AuthContext';
 
-// Importación de las funciones de comunicación asíncronas (Puente API)
 import { 
   getModelosApi, 
   saveModeloApi, 
@@ -29,85 +23,68 @@ import {
   getAllRepuestosModelosLinksApi,
   asociarRepuestoApi
 } from '../services/modelosApi';
-
 import { saveMarcaApi } from '../services/marcasApi';
 
 export function Modelos() {
-  // ==========================================
-  // ESTADOS PRINCIPALES Y PERMISOS DE LA VISTA
-  // ==========================================
-  const { isAdmin } = useAuth(); // Extrae si el usuario tiene rol administrativo
-  const [modelos, setModelos] = useState<Modelo[]>([]); // Almacena el catálogo de modelos reales traídos de la BD
-  const [marcasList, setMarcasList] = useState<Marca[]>([]); // Lista de marcas para alimentar los filtros/modales
-  const [tiposEquipo, setTiposEquipoList] = useState<TipoEquipo[]>([]); // Lista de tipos de equipos disponibles
-  const [marcas, setMarcas] = useState<Marca[]>([]);
+  const { isAdmin } = useAuth();
+  const queryClient = useQueryClient();
 
-  // Estados dedicados al puente interactivo con el catálogo e histórico de repuestos asociados
-  const [repuestosState, setRepuestosState] = useState<RepuestoModelo[]>([]); // Tabla relacional intermedia (Links)
-  const [listaRepuestosState, setListaRepuestosState] = useState<Repuesto[]>([]); // Catálogo maestro de repuestos
+  // Estados de control de UI locales
+  const [searchQuery, setSearchQuery] = useState('');
 
-  // Estados de control de UI y carga reactiva
-  const [searchQuery, setSearchQuery] = useState(''); // Guarda la cadena de texto del cuadro de búsqueda global
-  const [loading, setLoading] = useState(true); // Controla el renderizado de la pantalla de carga
-  const [error, setError] = useState(''); // Captura mensajes de error en peticiones HTTP
+  // Estados del Modal de Gestión de Modelos
+  const [selectedModelo, setSelectedModelo] = useState<Modelo | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
 
-  // Estados del Modal de Gestión de Modelos (Crear / Ver / Editar)
-  const [selectedModelo, setSelectedModelo] = useState<Modelo | null>(null); // Modelo seleccionado para inspección o edición
-  const [isModalOpen, setIsModalOpen] = useState(false); // Flag de apertura/cierre del modal principal
-  const [isCreating, setIsCreating] = useState(false); // Flag para indicarle al modal si debe abrirse en modo inserción vacía
-
-  // Estados del Modal Secundario de Repuestos (Asociados al modelo)
-  const [repuestosModelo, setRepuestosModelo] = useState<Modelo | null>(null); // Rastrea de qué modelo estamos inspeccionando repuestos
-  const [isRepuestosModalOpen, setIsRepuestosModalOpen] = useState(false); // Flag de apertura del modal de repuestos
-  
+  // Estados del Modal Secundario de Repuestos
+  const [repuestosModelo, setRepuestosModelo] = useState<Modelo | null>(null);
+  const [isRepuestosModalOpen, setIsRepuestosModalOpen] = useState(false);
 
   // ==========================================
-  // EFECTO DE CARGA INICIAL (PUENTE BACKEND)
+  // COORDINACIÓN DE ENTRADAS CON TANSTACK QUERY
   // ==========================================
-  useEffect(() => {
-    async function loadData() {
-      try {
-        setLoading(true);
-        const [data, linksData] = await Promise.all([
-          getModelosApi(),
-          getAllRepuestosModelosLinksApi().catch(() => []), // Captura preventiva por si la tabla relacional está vacía
-        ]);
+  const {
+    data: masterData,
+    isLoading,
+    isError
+  } = useQuery({
+    queryKey: ['modelosMasterData'],
+    queryFn: async () => {
+      const [data, linksData] = await Promise.all([
+        getModelosApi(),
+        getAllRepuestosModelosLinksApi().catch(() => []),
+      ]);
 
-        // Seteo en los estados reactivos de la aplicación
-        setModelos(data.modelos);
-        setMarcasList(data.marcas);
-        setTiposEquipoList(data.tiposEquipo);
-        setRepuestosState(linksData);
-
-        // 🛠️ NUEVA CORRECCIÓN: Guardar el catálogo maestro de repuestos normalizando sus propiedades
-        if (data.repuestos) {
-          const repuestosFormateados = data.repuestos.map((r: any) => ({
+      const repuestosFormateados = data.repuestos
+        ? data.repuestos.map((r: any) => ({
             id: String(r.id),
             nombre: r.nombre,
             codigoParte: r.codigoParte,
             infoTecnica: r.infoTecnica || '',
-          }));
-          setListaRepuestosState(repuestosFormateados);
-        } else {
-          setListaRepuestosState([]);
-        }
+          }))
+        : [];
 
-      } catch (err: any) {
-        console.error(err);
-        setError('No se pudieron cargar los datos de modelos.');
-      } finally {
-        setLoading(false); // Apaga el spinner o indicador visual de carga
-      }
+      return {
+        modelos: data.modelos || [],
+        marcasList: data.marcas || [],
+        tiposEquipo: data.tiposEquipo || [],
+        repuestosState: linksData || [],
+        listaRepuestosState: repuestosFormateados
+      };
     }
+  });
 
-    loadData();
-  }, []);
+  // Variables seguras extraídas del motor de caché
+  const modelos = masterData?.modelos || [];
+  const marcasList = masterData?.marcasList || [];
+  const tiposEquipo = masterData?.tiposEquipo || [];
+  const repuestosState = masterData?.repuestosState || [];
+  const listaRepuestosState = masterData?.listaRepuestosState || [];
 
   // ==========================================
-  // COMPUTACIONES FILTRADAS Y OPTIMIZADAS
+  // COMPUTACIONES FILTRADAS (MEMO)
   // ==========================================
-  
-  // FILTRO 1: Buscador en tiempo real por concordancia de texto
   const filteredModelos = useMemo(() => {
     if (!searchQuery) return modelos;
 
@@ -117,29 +94,22 @@ export function Modelos() {
         modelo.nombre.toLowerCase().includes(query) ||
         modelo.anoVersion.toLowerCase().includes(query) ||
         modelo.numeroSerie.toLowerCase().includes(query) ||
-        (modelo as any).marcaNombre?.toLowerCase().includes(query) || // Búsqueda sobre el alias de la marca
-        (modelo as any).tipoNombre?.toLowerCase().includes(query)     // Búsqueda sobre el alias del tipo de equipo
+        (modelo as any).marcaNombre?.toLowerCase().includes(query) || 
+        (modelo as any).tipoNombre?.toLowerCase().includes(query)
       );
     });
   }, [modelos, searchQuery]);
 
-  // FILTRO 2: Agrupación matricial bidimensional (Tipo de Equipo -> Marcas -> Modelos[])
   const groupedModelos = useMemo(() => {
     const groups: Record<string, Record<string, Modelo[]>> = {};
 
     filteredModelos.forEach(modelo => {
-      // Usamos los alias inyectados por los JOINs del controlador de la base de datos
       const tipoNombre = (modelo as any).tipoNombre || 'Sin Tipo';
       const marcaNombre = (modelo as any).marcaNombre || 'Sin Marca';
 
-      // Inicialización estructurada del árbol de claves del objeto si no existen
-      if (!groups[tipoNombre]) {
-        groups[tipoNombre] = {};
-      }
-      if (!groups[tipoNombre][marcaNombre]) {
-        groups[tipoNombre][marcaNombre] = [];
-      }
-      // Inserción del modelo dentro de su hoja correspondiente
+      if (!groups[tipoNombre]) groups[tipoNombre] = {};
+      if (!groups[tipoNombre][marcaNombre]) groups[tipoNombre][marcaNombre] = [];
+      
       groups[tipoNombre][marcaNombre].push(modelo);
     });
 
@@ -147,23 +117,19 @@ export function Modelos() {
   }, [filteredModelos]);
 
   // ==========================================
-  // MANEJADORES DE EVENTOS DE INTERFAZ (UI)
+  // MANEJADORES DE MANIPULACIÓN DE VENTANAS
   // ==========================================
-  
-  // Abre el modal para visualizar los detalles técnicos de un modelo existente
   const handleOpenModeloModal = (modelo: Modelo) => {
     setSelectedModelo(modelo);
     setIsCreating(false);
     setIsModalOpen(true);
   };
 
-  // Abre el modal dedicado a revisar y enlazar repuestos al modelo clickeado
   const handleOpenRepuestosModal = (modelo: Modelo) => {
     setRepuestosModelo(modelo);
     setIsRepuestosModalOpen(true);
   };
 
-  // Prepara el formulario del modal en blanco para el registro de una entidad nueva
   const handleCreateModelo = () => {
     setSelectedModelo(null);
     setIsCreating(true);
@@ -171,92 +137,69 @@ export function Modelos() {
   };
 
   // ==========================================
-  // PROCESAMIENTO LOCAL DE FORMULARIOS (PROPS)
+  // MUTACIONES ASÍNCRONAS REESTRUCTURADAS
   // ==========================================
-  
-  // Guarda cambios de edición o creación (Mutación temporal hasta enganchar fetch directo)
   const handleSaveModelo = async (modeloData: Omit<Modelo, 'id'>) => {
     try {
       const idParaApi = selectedModelo ? selectedModelo.id : undefined;
-      const idGenerado = await saveModeloApi(modeloData, idParaApi);
+      await saveModeloApi(modeloData, idParaApi);
 
-    if (selectedModelo) {
-      setModelos(prev =>
-        prev.map(m => (m.id === selectedModelo.id ? { ...m, ...modeloData } : m))
-      );
-    } else {
-      const newModelo: Modelo = {
-        ...modeloData,
-        id: idGenerado,
-      };
-      setModelos(prev => [newModelo, ...prev]);
+      // Sincronizamos las vistas afectadas para que no existan inconsistencias de datos
+      queryClient.invalidateQueries({ queryKey: ['modelosMasterData'] });
+      queryClient.invalidateQueries({ queryKey: ['equiposMasterData'] });
+      
+      setIsModalOpen(false);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'Error al intentar guardar el modelo.');
     }
-    setIsModalOpen(false); // Cierre exitoso del cuadro de diálogo
-  } catch (err: any) {
-    console.error(err);
-    setError(err.message || 'Error al intentar guardar el modelo.');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
-const handleAddMarcaAsync = async (marcaNombre: string): Promise<Marca> => {
-  try {
-    const nuevaMarca = await saveMarcaApi(marcaNombre);
-    setMarcas(prev => [...prev, nuevaMarca]); // Al impactar el estado, el dropdown se actualiza solo
-    return nuevaMarca;
-  } catch (err: any) {
-    throw new Error(err.message || 'No se pudo registrar la marca.');
-  }
-};
+  const handleAddMarcaAsync = async (marcaNombre: string): Promise<Marca> => {
+    try {
+      const nuevaMarca = await saveMarcaApi(marcaNombre);
+      queryClient.invalidateQueries({ queryKey: ['modelosMasterData'] });
+      queryClient.invalidateQueries({ queryKey: ['equiposMasterData'] });
+      return nuevaMarca;
+    } catch (err: any) {
+      throw new Error(err.message || 'No se pudo registrar la marca.');
+    }
+  };
 
-// Remueve un modelo de la base de datos y actualiza el estado local
-const handleDeleteModelo = async (id: string) => {
-  try {
-    setLoading(true);
-    
-    // Llamada física al endpoint DELETE /api/modelos/:id
-    await deleteModeloApi(id);
-    
-    // Si el servidor responde OK, lo quitamos de la UI
-    setModelos(prev => prev.filter(m => m.id !== id));
-    setIsModalOpen(false);
-  } catch (err: any) {
-    console.error(err);
-    setError(err.message || 'No se pudo eliminar el modelo del servidor.');
-  } finally {
-    setLoading(false);
-  }
-};
+  const handleDeleteModelo = async (id: string) => {
+    if (!window.confirm('¿Está seguro de que desea eliminar este modelo permanentemente?')) {
+      return;
+    }
+    try {
+      await deleteModeloApi(id);
+      queryClient.invalidateQueries({ queryKey: ['modelosMasterData'] });
+      queryClient.invalidateQueries({ queryKey: ['equiposMasterData'] });
+      setIsModalOpen(false);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'No se pudo eliminar el modelo del servidor.');
+    }
+  };
 
-  // Agrega una nueva relación intermedia entre un repuesto existente y el modelo activo
   const handleAddRepuesto = async (newLink: RepuestoModelo) => {
     if (!repuestosModelo) return;
     try {
-      const response = await asociarRepuestoApi(repuestosModelo.id, {
+      await asociarRepuestoApi(repuestosModelo.id, {
         tipo: 'existing',
         repuestoId: newLink.repuestoId
       });
 
-      // Normalizamos el link relacional para asegurar compatibilidad de tipos string
-      const linkNormalizado: RepuestoModelo = {
-        id: String(response.link.id),
-        modeloId: String(response.link.modeloId),
-        repuestoId: String(response.link.repuestoId)
-      };
-
-      setRepuestosState(prev => [...prev, linkNormalizado]);
+      queryClient.invalidateQueries({ queryKey: ['modelosMasterData'] });
     } catch (err: any) {
       console.error(err);
       alert(err.message || 'Error al asociar el repuesto existente.');
     }
   };
 
-  // Inserción simultánea: registra un repuesto inédito en el catálogo y crea su enlace con el modelo
-  const handleAddNewRepuesto = async (newRepuesto: Repuesto, newLink: RepuestoModelo) => {
+  const handleAddNewRepuesto = async (newRepuesto: Repuesto, _newLink: RepuestoModelo) => {
     if (!repuestosModelo) return;
     try {
-      const response = await asociarRepuestoApi(repuestosModelo.id, {
+      await asociarRepuestoApi(repuestosModelo.id, {
         tipo: 'new',
         repuestoId: null,
         nuevoRepuesto: {
@@ -266,49 +209,39 @@ const handleDeleteModelo = async (id: string) => {
         }
       });
 
-      // 1. Si el servidor creó con éxito el repuesto maestro, lo agregamos al catálogo
-      if (response.repuesto) {
-        const repuestoNormalizado: Repuesto = {
-          id: String(response.repuesto.id),
-          nombre: response.repuesto.nombre,
-          codigoParte: response.repuesto.codigoParte,
-          infoTecnica: response.repuesto.infoTecnica || ''
-        };
-        setListaRepuestosState(prev => [...prev, repuestoNormalizado]);
-      }
-
-      // 2. Normalizamos y agregamos la relación intermedia
-      const linkNormalizado: RepuestoModelo = {
-        id: String(response.link.id),
-        modeloId: String(response.link.modeloId),
-        repuestoId: String(response.link.repuestoId)
-      };
-      
-      setRepuestosState(prev => [...prev, linkNormalizado]);
+      queryClient.invalidateQueries({ queryKey: ['modelosMasterData'] });
     } catch (err: any) {
       console.error(err);
       alert(err.message || 'Error al registrar el nuevo repuesto.');
     }
   };
 
-  // Helper dinámico para renderizar el contador numérico de repuestos en las tarjetas
   const getRepuestosCount = (modeloId: string) =>
     repuestosState.filter(rm => String(rm.modeloId) === String(modeloId)).length;
 
   // ==========================================
-  // RENDERIZADO DE ALERTAS / PANTALLAS DE CONTROL
+  // RENDERIZADO DE ESTADOS DE RED
   // ==========================================
-  if (loading) {
-    return <div className="py-10 text-center text-gray-100">Cargando modelos...</div>;
+  if (isLoading) {
+    return (
+      <div className="py-20 flex flex-col items-center justify-center space-y-3">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#0066CC]"></div>
+        <p className="text-sm text-gray-100">Cargando Modelos en tiempo real...</p>
+      </div>
+    );
   }
 
-  if (error) {
-    return <div className="py-10 text-center text-red-600">{error}</div>;
+  if (isError) {
+    return (
+      <div className="max-w-md mx-auto my-10 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-center text-sm">
+        No se pudieron cargar los datos de modelos.
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
-      {/* SECCIÓN DEL HEADER: Título principal de la página y botón de creación */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-3xl font-bold text-gray-900">Modelos</h2>
@@ -327,7 +260,7 @@ const handleDeleteModelo = async (id: string) => {
         )}
       </div>
 
-      {/* CUADRO DE BÚSQUEDA GLOBAL */}
+      {/* Buscador */}
       <Card>
         <CardContent className="pt-6">
           <div className="relative">
@@ -343,7 +276,7 @@ const handleDeleteModelo = async (id: string) => {
         </CardContent>
       </Card>
 
-      {/* RENDERIZADO CONDICIONAL: Mensaje vacío u objetos agrupados mapeados */}
+      {/* Listado Principal */}
       {Object.keys(groupedModelos).length === 0 ? (
         <Card>
           <CardContent className="pt-12 pb-12 text-center">
@@ -356,7 +289,6 @@ const handleDeleteModelo = async (id: string) => {
         </Card>
       ) : (
         <div className="space-y-6">
-          {/* PRIMER NIVEL DE ITERACIÓN: Separación por Tipo de Equipo */}
           {Object.entries(groupedModelos).map(([tipoNombre, marcasGroup]) => (
             <Card key={tipoNombre}>
               <CardHeader className="bg-gradient-to-r from-green-500/5 to-transparent">
@@ -370,7 +302,6 @@ const handleDeleteModelo = async (id: string) => {
               </CardHeader>
               <CardContent className="pt-6">
                 <div className="space-y-6">
-                  {/* SEGUNDO NIVEL DE ITERACIÓN: Separación interna por Marcas */}
                   {Object.entries(marcasGroup).map(([marcaNombre, modelosArray]) => (
                     <div key={marcaNombre}>
                       <div className="flex items-center gap-2 mb-3">
@@ -378,7 +309,6 @@ const handleDeleteModelo = async (id: string) => {
                         <Badge className="bg-[#0066CC] hover:bg-[#0052A3]">{modelosArray.length}</Badge>
                       </div>
 
-                      {/* TERCER NIVEL: Malla (Grid) de Tarjetas Individuales de los Modelos */}
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                         {modelosArray.map(modelo => {
                           const repCount = getRepuestosCount(modelo.id);
@@ -405,7 +335,6 @@ const handleDeleteModelo = async (id: string) => {
                                   <p className="text-xs text-gray-500 mb-2 line-clamp-2">{modelo.infoTecnica}</p>
                                 )}
 
-                                {/* BOTONES DE ACCIÓN: Vinculación a modales secundarios */}
                                 <div className="flex gap-2 pt-2 border-t border-gray-100 mt-1">
                                   <Button
                                     size="sm"
@@ -445,7 +374,7 @@ const handleDeleteModelo = async (id: string) => {
         </div>
       )}
 
-      {/* COMPONENTE INYECTADO: Modal de edición/lectura de datos técnicos del Modelo */}
+      {/* Modal Modelo */}
       <ModeloModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -458,7 +387,7 @@ const handleDeleteModelo = async (id: string) => {
         onAddMarcaAsync={handleAddMarcaAsync}
       />
 
-      {/* COMPONENTE INYECTADO: Modal de catálogo de repuestos asociados */}
+      {/* Modal Repuestos */}
       <RepuestosModal
         isOpen={isRepuestosModalOpen}
         onClose={() => setIsRepuestosModalOpen(false)}
