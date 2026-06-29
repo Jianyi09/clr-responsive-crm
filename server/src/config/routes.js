@@ -3,5 +3,6 @@ export const ROUTES = {
   data: '/api/data',
   equipos: '/api/equipos',
   modelos: '/api/modelos',
-  marcas: '/api/marcas'
+  marcas: '/api/marcas',
+  auth: '/api/auth',
 };

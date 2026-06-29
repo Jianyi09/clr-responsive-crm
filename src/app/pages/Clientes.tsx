@@ -1,5 +1,5 @@
-
-import { useEffect, useState, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router';
 import { Card, CardContent } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -9,194 +9,139 @@ import { Badge } from '../components/ui/badge';
 // Importamos iconos estilizados de la librería lucide-react para la interfaz gráfica
 import { Building2, MapPin, Phone, Mail, Search, Plus } from 'lucide-react';
 
-// Importamos la definición de tipo 'Cliente' para que TypeScript sepa qué propiedades tiene un cliente
-import { type Cliente, Equipo } from '../data/mockData';
+// Importamos la definición de tipo 'Cliente' y 'Equipo'
+import { type Cliente, type Equipo } from '../data/mockData';
 
-// Importamos la función encargada de comunicarse con el servidor/backend para traer los datos
-// Usamos el endpoint de clientesController para obtener estado, ciudad y equipos registrados.
+// Importamos las funciones encargadas de comunicarse con el servidor/backend
 import { getClientesApi, saveClienteApi, eliminarClienteApi } from '../services/clientesApi';
 import { getEquiposInitData } from '../services/equiposApi';
 
-// Importamos el componente de la ventana emergente (modal) para crear, editar o eliminar clientes
+// Importamos el componente de la ventana emergente (modal)
 import { ClienteModal } from '../components/modals/ClienteModal';
 
-// Importamos el Hook personalizado de autenticación para saber si el usuario actual tiene permisos
+// Importamos el Hook personalizado de autenticación
 import { useAuth } from '../context/AuthContext';
 
-
-// ==========================================
-// 2. COMPONENTE PRINCIPAL: Clientes
-// ==========================================
 export function Clientes() {
-  
   // ==========================================
-  // 3. DECLARACIÓN DE ESTADOS (STATE)
+  // DECLARACIÓN DE ESTADOS Y CONFIGURACIÓN
   // ==========================================
-  
-  // Extraemos la propiedad isAdmin del contexto global de autenticación
   const { isAdmin } = useAuth();
   const [searchParams] = useSearchParams();
+  const queryClient = useQueryClient(); // Nos permite manipular e invalidar la caché manualmente
 
   const [selectedEstado] = useState<string>(searchParams.get('estado') || 'todos');
   const [selectedTipo] = useState<string>(searchParams.get('tipo') || 'todos');
   
-  // Estado principal que guarda el array con todos los clientes traídos de la base de datos
-  const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [equipos, setEquipos] = useState<Equipo[]>([]);
-  
-  // Guarda el texto que el usuario escribe en la barra de búsqueda rápida
   const [searchQuery, setSearchQuery] = useState('');
-  
-  // Guarda el objeto del cliente que el usuario seleccionó (hizo clic) para ver o editar en el modal
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
-  
-  // Controla si la ventana emergente (modal) está visible (true) o invisible (false)
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
-  // Bandera para decirle al modal si se abrió para registrar un cliente nuevo (true) o para editar uno existente (false)
   const [isCreating, setIsCreating] = useState(false);
-  
-  // Estado que controla si la pantalla está cargando datos del backend (muestra un mensaje de "Cargando...")
-  const [loading, setLoading] = useState(true);
-  
-  // Guarda un mensaje de error string en caso de que la conexión con el servidor falle
-  const [error, setError] = useState('');
-
-  // Estado que almacena un catálogo de ubicaciones (estados y ciudades) para mostrar en los dropdowns del modal
-  const [catalogUbicaciones, setCatalogUbicaciones] = useState<Record<string, string[]>>({});
- // Estado que almacena una lista de estados para mostrar en el dropdown del modal
-  const [listaEstados, setListaEstados] = useState<string[]>([]);
 
   // ==========================================
-  // 4. EFECTOS (EFECTO DE CARGA INICIAL - BACKEND)
+  // CACHÉ Y API CON TANSTACK QUERY
   // ==========================================
-    // Definimos una función asíncrona interna para poder usar 'await' al llamar a la API
-    useEffect(() => {
-    async function loadInitialData() {
-      try {
-        setLoading(true);
-        // Traemos clientes y equipos de forma simultánea para poder hacer filtros cruzados eficientes
-        const [clientesData, equiposData] = await Promise.all([
-          getClientesApi(),
-          getEquiposInitData()
-        ]);
 
-        if (Array.isArray(clientesData)) {
-          setClientes(clientesData);
-        } else {
-          setClientes([]);
-          setError('El servidor devolvió un formato de datos inesperado.');
-        }
-
-        if (equiposData && Array.isArray(equiposData.equipos)) {
-          setEquipos(equiposData.equipos);
-        }
-      } catch (err) {
-        console.error(err);
-        setError(err instanceof Error ? `No se pudo conectar al servidor: ${err.message}` : 'No se pudo cargar la información maestra.');
-      } finally {
-        setLoading(false);
-      }
+  // 1. Consulta maestra: Trae clientes y equipos en paralelo compartiendo estados de carga
+  const { 
+    data: masterData, 
+    isLoading: loadingMaster, 
+    isError: errorMaster 
+  } = useQuery({
+    queryKey: ['clientesMasterData'],
+    queryFn: async () => {
+      const [clientesData, equiposData] = await Promise.all([
+        getClientesApi(),
+        getEquiposInitData()
+      ]);
+      return {
+        clientes: Array.isArray(clientesData) ? clientesData : [],
+        equipos: equiposData && Array.isArray(equiposData.equipos) ? equiposData.equipos : []
+      };
     }
-    loadInitialData();
-  }, []); // El array vacío [] asegura que esto solo ocurra UNA VEZ al cargar la página
+  });
 
-  useEffect(() => {
-    const cargarUbicaciones = async () => {
-      try {
-        // Mantenemos la llamada limpia al catálogo de ubicaciones
-        const response = await fetch('http://localhost:4000/api/clientes/ubicaciones');
-        const data = await response.json();
-        setCatalogUbicaciones(data);
-        setListaEstados(Object.keys(data)); 
-      } catch (error) {
-        console.error('Error al conectar catálogo geográfico:', error);
-      }
-    };
-    cargarUbicaciones();
-  }, []);
+  // Extraemos de la consulta con valores por defecto seguros
+  const clientes = masterData?.clientes || [];
+  const equipos = masterData?.equipos || [];
+
+  // 2. Consulta geográfica: Trae el catálogo de estados y ciudades
+  const { data: geoData } = useQuery({
+    queryKey: ['catalogUbicaciones'],
+    queryFn: async () => {
+      const response = await fetch('http://localhost:4000/api/clientes/ubicaciones');
+      if (!response.ok) throw new Error('Error al conectar catálogo geográfico');
+      const data = await response.json();
+      return {
+        catalog: data,
+        estados: Object.keys(data)
+      };
+    }
+  });
+
+  const catalogUbicaciones = geoData?.catalog || {};
+  const listaEstados = geoData?.estados || [];
 
   // ==========================================
-  // 5. LÓGICA DE FILTRADO (BÚSQUEDA EN TIEMPO REAL)
+  // LÓGICA DE FILTRADO (BÚSQUEDA EN TIEMPO REAL)
   // ==========================================
-  // useMemo evita tener que filtrar todo el array de clientes en cada click o render innecesario.
-  // Solo se vuelve a calcular si el texto de búsqueda (searchQuery) o la lista de clientes cambian.
   const filteredClientes = useMemo(() => {
-    if (!Array.isArray(clientes)) return [];
-    
     let result = [...clientes];
 
-    // 1. Filtrado proveniente de la URL: Estado
+    // 1. Filtrado de la URL: Estado
     if (selectedEstado !== 'todos') {
       result = result.filter(cliente => cliente.estado === selectedEstado);
     }
 
-    // 2. Filtrado proveniente de la URL: Tipo de Equipo (Filtro cruzado)
+    // 2. Filtrado de la URL: Tipo de Equipo
     if (selectedTipo !== 'todos') {
-      // Obtenemos los equipos que cumplen con el tipo de equipo seleccionado en el Dashboard
       const equiposFiltradosPorTipo = equipos.filter(e => String(e.tipoEquipoId) === String(selectedTipo));
-      // Creamos un Set con los IDs únicos de los clientes que poseen esos equipos
       const clientesConEseTipo = new Set(equiposFiltradosPorTipo.map(e => String(e.clienteId)));
-      // Filtramos la lista de clientes manteniendo únicamente a los que tengan equipos de ese tipo
       result = result.filter(cliente => clientesConEseTipo.has(String(cliente.id)));
     }
 
-    // 3. Filtro de la barra de búsqueda por texto (El tuyo original intacto)
+    // 3. Filtro de la barra de búsqueda por texto
     if (searchQuery) {
       const query = searchQuery.toLowerCase().trim();
       result = result.filter((cliente) => {
-        const razonSocial = (cliente.razonSocial || '').toLowerCase();
-        const rifDni = (cliente.rifDni || '').toLowerCase();
-        const contacto = (cliente.contacto || '').toLowerCase();
-        const estadoName = (cliente.estado || '').toLowerCase();
-        const ciudadName = (cliente.ciudad || '').toLowerCase();
-        const direccionCompleta = (cliente.direccion || '').toLowerCase();
-        const telefono = (cliente.numeroTelefonico || '').toLowerCase();
-        const correo = (cliente.correoElectronico || '').toLowerCase();
-
         return (
-          razonSocial.includes(query) ||
-          rifDni.includes(query) ||
-          contacto.includes(query) ||
-          estadoName.includes(query) ||
-          ciudadName.includes(query) ||
-          direccionCompleta.includes(query) ||
-          telefono.includes(query) ||
-          correo.includes(query)
+          (cliente.razonSocial || '').toLowerCase().includes(query) ||
+          (cliente.rifDni || '').toLowerCase().includes(query) ||
+          (cliente.contacto || '').toLowerCase().includes(query) ||
+          (cliente.estado || '').toLowerCase().includes(query) ||
+          (cliente.ciudad || '').toLowerCase().includes(query) ||
+          (cliente.direccion || '').toLowerCase().includes(query) ||
+          (cliente.numeroTelefonico || '').toLowerCase().includes(query) ||
+          (cliente.correoElectronico || '').toLowerCase().includes(query)
         );
       });
     }
 
     return result;
   }, [clientes, equipos, selectedEstado, selectedTipo, searchQuery]);
+
   // ==========================================
-  // 6. MANEJADORES DE EVENTOS (INTERACCIONES)
+  // MANEJADORES DE EVENTOS
   // ==========================================
-  
-  // Se ejecuta cuando el usuario hace clic sobre la tarjeta de un cliente existente
   const handleClienteClick = (cliente: Cliente) => {
-    setSelectedCliente(cliente); // Almacena el cliente seleccionado para enviárselo al modal
-    setIsCreating(false);        // Avisa al modal que se trata de una visualización/edición, no de una creación
-    setIsModalOpen(true);        // Abre el modal en pantalla
+    setSelectedCliente(cliente);
+    setIsCreating(false);
+    setIsModalOpen(true);
   };
 
-  // Se ejecuta al hacer clic en el botón naranja "Registrar Cliente"
   const handleCreateCliente = () => {
-    setSelectedCliente(null);    // Limpia cualquier cliente seleccionado previo (formulario vacío)
-    setIsCreating(true);         // Avisa al modal que es un registro completamente nuevo
-    setIsModalOpen(true);        // Abre el modal en pantalla
+    setSelectedCliente(null);
+    setIsCreating(true);
+    setIsModalOpen(true);
   };
 
-  // Se ejecuta cuando el usuario presiona "Guardar" DENTRO del modal (conexion con BACKEND)
   const handleSaveCliente = async (clienteData: Omit<Cliente, 'id_clientes' | 'equiposRegistrados'>) => {
     try {
-      // Invocamos el servicio unificado pasando la bandera booleana isCreating
-      // Este servicio ya se encarga de formatear a snake_case y elegir POST o PUT
       await saveClienteApi(clienteData, isCreating);
-
-      // Refrescamos la lista principal de clientes desde la base de datos
-      const clientesData = await getClientesApi();
-      setClientes(clientesData);
+      
+      // ¡ESTA ES LA MAGIA OOFFLINE/CACHE!: Le decimos a TanStack Query que limpie los datos viejos
+      // Esto fuerza a la app a pedir datos nuevos a la API en segundo plano sin reiniciar la UI
+      queryClient.invalidateQueries({ queryKey: ['clientesMasterData'] });
       
       setIsModalOpen(false); 
     } catch (error) {
@@ -205,18 +150,17 @@ export function Clientes() {
     }
   };
 
-  // Se ejecuta cuando el usuario presiona "Eliminar" DENTRO del modal de un cliente
   const handleDeleteCliente = async (id: number) => {
     if (!window.confirm('¿Estás segura de que deseas eliminar este cliente de forma permanente?')) {
       return;
     }
 
     try {
-      // Convertimos el ID numérico a String tal como lo requiere el tipado del endpoint en la API
       await eliminarClienteApi(id.toString());
-
-      // Sincronizamos la UI local removiendo la fila del estado
-      setClientes(prev => prev.filter(c => c.id !== id.toString())); 
+      
+      // Invalidamos la caché para actualizar instantáneamente la pantalla
+      queryClient.invalidateQueries({ queryKey: ['clientesMasterData'] });
+      
       setIsModalOpen(false); 
     } catch (error) {
       console.error('Error al intentar eliminar:', error);
@@ -225,39 +169,36 @@ export function Clientes() {
   };
 
   // ==========================================
-  // 7. RENDERIZACIÓN CONDICIONAL (ESTADOS DE ESPERA)
+  // RENDERIZACIÓN CONDICIONAL (MANEJO DE RED)
   // ==========================================
-  
-  // Si la petición a la API sigue pendiente, detiene la ejecución aquí y muestra esta interfaz limpia
-  if (loading) {
+  if (loadingMaster) {
     return (
-      <div className="py-10 text-center text-gray-100">Cargando clientes...</div>
+      <div className="py-20 flex flex-col items-center justify-center space-y-3">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#0066CC]"></div>
+        <p className="text-sm text-gray-100">Sincronizando clientes registrados...</p>
+      </div>
     );
   }
 
-  // Si la conexión falló o el servidor devolvió un error, rompe el flujo y muestra el mensaje de error
-  if (error) {
+  if (errorMaster) {
     return (
-      <div className="py-10 text-center text-red-600">{error}</div>
+      <div className="max-w-md mx-auto my-10 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-center">
+        <p className="font-semibold">Error de conexión local</p>
+        <p className="text-xs mt-1">No se pudo recuperar la información maestra del servidor PostgreSQL.</p>
+      </div>
     );
   }
 
-  // ==========================================
-  // 8. RENDERIZADO DE LA INTERFAZ DE USUARIO (HTML / JSX)
-  // ==========================================
   return (
     <div className="space-y-6">
-      
-      {/* SECCIÓN A: CABECERA (Título y botón de registro) */}
+      {/* SECCIÓN A: CABECERA */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-3xl font-bold text-gray-900">Clientes</h2>
           <p className="text-gray-100 mt-1">
-            {/* Calcula dinámicamente cuántos clientes se muestran en pantalla y maneja el plural/singular */}
             {filteredClientes.length} cliente{filteredClientes.length !== 1 ? 's' : ''} registrado{filteredClientes.length !== 1 ? 's' : ''}
           </p>
         </div>
-        {/* Renderizado condicional: El botón naranja solo se dibuja si el usuario es Administrador (isAdmin === true) */}
         {isAdmin && (
           <Button
             onClick={handleCreateCliente}
@@ -274,51 +215,41 @@ export function Clientes() {
         <CardContent className="pt-6">
           <div className="relative">
             <Search className="absolute left-3 top-2 h-5 w-5 text-gray-400" />
-            {/* Input conectado bidireccionalmente con el estado 'searchQuery' */}
             <Input
               type="text"
               placeholder="Buscar por razón social, RIF, contacto, estado o zona..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)} // Captura cada tecla o cambio y actualiza el estado
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
             />
           </div>
         </CardContent>
       </Card>
 
-      {/* SECCIÓN C: REJILLA DE CLIENTES / COMPONENTE DE RESULTADOS */}
+      {/* SECCIÓN C: REJILLA DE CLIENTES */}
       {filteredClientes.length === 0 ? (
-        // Sub-Caso 1: Si el filtro de búsqueda da 0 resultados, muestra un panel de "No encontrado"
         <Card>
           <CardContent className="pt-12 pb-12 text-center">
             <Building2 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              No se encontraron clientes
-            </h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No se encontraron clientes</h3>
             <p className="text-gray-600">
-              {searchQuery
-                ? 'Intenta con otro término de búsqueda'
-                : 'Comienza registrando tu primer cliente'}
+              {searchQuery ? 'Intenta con otro término de búsqueda' : 'Comienza registrando tu primer cliente'}
             </p>
           </CardContent>
         </Card>
       ) : (
-        // Sub-Caso 2: Si hay clientes en la lista, dibuja una rejilla responsiva (1 col en móvil, 2 en tablet, 3 en desktop)
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* Bucle .map para recorrer cada uno de los clientes filtrados y transformarlos en una tarjeta visual */}
           {filteredClientes.map((cliente) => (
             <Card
-              key={cliente.id} // Elemento requerido por React para identificar de forma única cada tarjeta en el DOM
+              key={cliente.id}
               className="hover:shadow-lg transition-all duration-200 hover:-translate-y-1 cursor-pointer"
-              onClick={() => handleClienteClick(cliente)} // Al dar clic en cualquier parte de la tarjeta se abre su información
+              onClick={() => handleClienteClick(cliente)}
             >
               <CardContent className="pt-6">
-                {/* Contenedor Superior del Card: Icono del edificio y etiqueta de equipos */}
                 <div className="flex items-start justify-between mb-4">
                   <div className="w-12 h-12 bg-gradient-to-br from-[#0066CC] to-[#0052A3] rounded-lg flex items-center justify-center">
                     <Building2 className="w-6 h-6 text-white" />
                   </div>
-                  {/* Badge dinámico: Cambia de color a naranja si el cliente posee equipos activos en tu CRM */}
                   <Badge
                     variant={cliente.equiposRegistrados > 0 ? 'default' : 'secondary'}
                     className={cliente.equiposRegistrados > 0 ? 'bg-[#FF6B35] hover:bg-[#E5582C]' : ''}
@@ -327,12 +258,10 @@ export function Clientes() {
                   </Badge>
                 </div>
 
-                {/* Razón Social del Cliente */}
                 <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2 min-h-[3rem]">
                   {cliente.razonSocial}
                 </h3>
 
-                {/* Datos de Contacto Directos (Teléfono y Correo) */}
                 <div className="space-y-2 text-sm text-gray-600">
                   <div className="flex items-center">
                     <MapPin className="w-4 h-4 mr-2 flex-shrink-0" />
@@ -348,7 +277,6 @@ export function Clientes() {
                   </div>
                 </div>
 
-                {/* Pie de la Tarjeta: Identificación Fiscal (RIF) y persona de contacto */}
                 <div className="mt-4 pt-4 border-t">
                   <p className="text-xs text-gray-500">
                     <span className="font-medium">RIF:</span> {cliente.rifDni}
@@ -363,17 +291,16 @@ export function Clientes() {
         </div>
       )}
 
-      {/* SECCIÓN D: VENTANA MODAL (Oculta por defecto) */}
-      {/* Le inyectamos todas las variables de control y los métodos creados anteriormente para que el Modal pueda operar */}
+      {/* SECCIÓN D: VENTANA MODAL */}
       <ClienteModal
-        isOpen={isModalOpen}              // Le dice si debe mostrarse o no
-        onClose={() => setIsModalOpen(false)} // Función para cerrarse desde la "X" del modal
-        cliente={selectedCliente}          // Pasa los datos del cliente activo (si se seleccionó uno)
-        isCreating={isCreating}            // Le indica si el formulario debe estar limpio para creación o no
-        onSave={handleSaveCliente}         // Pasa la función que gestionará el guardado
-        onDelete={handleDeleteCliente}     // Pasa la función que gestionará la eliminación
-        allClientes={clientes}             // Pasa la lista de clientes completa por si requiere validar duplicados (ej. RIF repetidos)
-        catalogUbicaciones={catalogUbicaciones} // Pasa el catálogo de ubicaciones para que el modal pueda mostrar los dropdowns dinámicos
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        cliente={selectedCliente}
+        isCreating={isCreating}
+        onSave={handleSaveCliente}
+        onDelete={handleDeleteCliente}
+        allClientes={clientes}
+        catalogUbicaciones={catalogUbicaciones}
         listaEstados={listaEstados}
       />
     </div>

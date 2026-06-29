@@ -1,18 +1,15 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
-import { Switch } from '../components/ui/switch';
-import { Label } from '../components/ui/label';
 import { Truck, Search, Plus, Package, Wrench, Info } from 'lucide-react';
 import {
-  type Cliente,
   type Equipo,
-  type Marca,
   type Modelo,
-  type TipoEquipo,
+  type Marca,
   type RepuestoModelo,
   type Repuesto,
 } from '../data/mockData';
@@ -26,86 +23,74 @@ import { saveMarcaApi } from '../services/marcasApi';
 export function Equipos() {
   const { isAdmin } = useAuth();
   const [searchParams] = useSearchParams();
+  const queryClient = useQueryClient();
 
-  const [selectedEstado] = useState<string>(searchParams.get('estado') || 'todos');
-  const [selectedTipo] = useState<string>(searchParams.get('tipo') || 'todos');
+  const selectedEstado = searchParams.get('estado') || 'todos';
+  const selectedTipo = searchParams.get('tipo') || 'todos';
   
-  // Estados de datos reales de la Base de Datos
-  const [equipos, setEquipos] = useState<Equipo[]>([]);
-  const [clientesList, setClientesList] = useState<Cliente[]>([]);
-  const [marcasList, setMarcasList] = useState<Marca[]>([]);
-  const [modelosList, setModelosList] = useState<Modelo[]>([]);
-  const [tiposEquipo, setTiposEquipo] = useState<TipoEquipo[]>([]);
-  
-  // Estados agregados por Figma para la gestión visual de repuestos (Mock temporales)
-  const [repuestosState, setRepuestosState] = useState<RepuestoModelo[]>([]);
-  const [listaRepuestos, setListaRepuestos] = useState<Repuesto[]>([]);
-
-  // Estados de filtros y UI
+  // Estados de filtros y UI locales
   const [searchQuery, setSearchQuery] = useState('');
-  const [soloConEquipos, setSoloConEquipos] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [soloConEquipos] = useState(false);
 
   // Estados del Modal Principal del Equipo
   const [selectedEquipo, setSelectedEquipo] = useState<Equipo | null>(null);
   const [isEquipoModalOpen, setIsEquipoModalOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
 
-  // Estados del Nuevo Modal de Repuestos (Lectura en esta pestaña)
+  // Estados del Nuevo Modal de Repuestos 
   const [repuestosEquipo, setRepuestosEquipo] = useState<Equipo | null>(null);
   const [isRepuestosModalOpen, setIsRepuestosModalOpen] = useState(false);
 
-  // Carga inicial conectada al Puente Backend-Frontend - Ahora reacciona a los filtros de la URL
-  useEffect(() => {
-    async function loadData() {
-      try {
-        setLoading(true);
-        
-        // Pasamos las selecciones actuales de la URL a tu servicio de la API
-        const dashboardData = await getEquiposInitData({
+  // ==========================================
+  // ADAPTACIÓN AL MOTOR DE CACHÉ DE TANSTACK QUERY
+  // ==========================================
+  const { 
+    data: masterData, 
+    isLoading, 
+    isError 
+  } = useQuery({
+    // La caché reacciona y se invalida automáticamente si cambian los parámetros de la URL
+    queryKey: ['equiposMasterData', selectedEstado, selectedTipo],
+    queryFn: async () => {
+      const [dashboardData, modelosData] = await Promise.all([
+        getEquiposInitData({
           estado: selectedEstado,
           tipoEquipo: selectedTipo
-        });
-        const modelosData = await getModelosApi();
+        }),
+        getModelosApi()
+      ]);
 
-        // 1. Poblamos datos maestros de Equipos
-        setEquipos(dashboardData.equipos);
-        setClientesList(dashboardData.clientes);
-        setMarcasList(dashboardData.marcas);
-        setTiposEquipo(dashboardData.tiposEquipo);
-        
-        // 2. Poblamos la lista de Modelos real
-        setModelosList(modelosData.modelos || []);
-
-        // 3. Guardamos las relaciones intermedias (links)
-        setRepuestosState(modelosData.links || []); 
-        setListaRepuestos(modelosData.repuestos || []);
-        
-      } catch (err) {
-        console.error(err);
-        setError('No se pudieron cargar los datos de los equipos reales.');
-      } finally {
-        setLoading(false);
-      }
+      return {
+        equipos: dashboardData.equipos || [],
+        clientesList: dashboardData.clientes || [],
+        marcasList: dashboardData.marcas || [],
+        tiposEquipo: dashboardData.tiposEquipo || [],
+        modelosList: modelosData.modelos || [],
+        repuestosState: modelosData.links || [],
+        listaRepuestos: modelosData.repuestos || []
+      };
     }
+  });
 
-    loadData();
-  }, [selectedEstado, selectedTipo]); 
+  // Variables seguras de respaldo para la UI
+  const equipos = masterData?.equipos || [];
+  const clientesList = masterData?.clientesList || [];
+  const marcasList = masterData?.marcasList || [];
+  const tiposEquipo = masterData?.tiposEquipo || [];
+  const modelosList = masterData?.modelosList || [];
+  const repuestosState = masterData?.repuestosState || [];
+  const listaRepuestos = masterData?.listaRepuestos || [];
 
-  // Filtrado de clientes estructurado
-  // Filtrado de clientes estructurado
-
+  // ==========================================
+  // FILTRADO Y PROCESAMIENTO INTERNO (MEMO)
+  // ==========================================
   const clientesConEquipos = useMemo(() => {
-  // El backend ya nos envía los clientes filtrados por estado si corresponde.
-  // Solo aplicamos el filtro local de "soloConEquipos" si está activo.
-  if (soloConEquipos) {
-    const clienteIds = new Set(equipos.map(e => e.clienteId));
-    return clientesList.filter(c => clienteIds.has(c.id));
-  }
-  
-  return clientesList;
-}, [soloConEquipos, equipos, clientesList]);
+    if (soloConEquipos) {
+      const clienteIds = new Set(equipos.map(e => e.clienteId));
+      return clientesList.filter(c => clienteIds.has(c.id));
+    }
+    return clientesList;
+  }, [soloConEquipos, equipos, clientesList]);
 
   const filteredData = useMemo(() => {
     const query = searchQuery.toLowerCase();
@@ -118,7 +103,6 @@ export function Equipos() {
 
       if (!searchQuery) {
         return { cliente, equipos: clienteEquipos };
-
       }
 
       const matchingEquipos = clienteEquipos.filter(equipo => {
@@ -140,8 +124,6 @@ export function Equipos() {
     }).filter(item => item.equipos.length > 0);
   }, [clientesConEquipos, equipos, searchQuery, marcasList, modelosList, tiposEquipo, selectedTipo]);
 
-
-  // Agrupación por Tipo de Equipo
   const groupedByTipo = useMemo(() => {
     return filteredData.map(({ cliente, equipos: clienteEquipos }) => {
       const grouped = tiposEquipo.map(tipo => ({
@@ -153,7 +135,20 @@ export function Equipos() {
     });
   }, [filteredData, tiposEquipo]);
 
-  // Controladores de apertura de Modales
+  const totalEquipos = useMemo(() => {
+    return filteredData.reduce((acc, item) => acc + item.equipos.length, 0);
+  }, [filteredData]);
+
+  const modeloForRepuestos = repuestosEquipo
+    ? modelosList.find(m => m.id === repuestosEquipo.modeloId) ?? null
+    : null;
+
+  const getRepuestosCount = (modeloId: string) =>
+    repuestosState.filter(rm => String(rm.modeloId) === String(modeloId)).length;
+
+  // ==========================================
+  // MANEJADORES DE APERTURA DE MODALES
+  // ==========================================
   const handleOpenEquipoModal = (equipo: Equipo) => {
     setSelectedEquipo(equipo);
     setIsCreating(false);
@@ -171,23 +166,18 @@ export function Equipos() {
     setIsEquipoModalOpen(true);
   };
 
-  // Lógica Asíncrona del Puente al Backend (Guardar / Registrar)
+  // ==========================================
+  // PROCESAMIENTOS DE MUTACIONES AL BACKEND
+  // ==========================================
   const handleSaveEquipo = async (equipoData: Omit<Equipo, 'id'>) => {
     try {
       const idParaApi = selectedEquipo ? selectedEquipo.id : undefined;
-      const idGenerado = await saveEquipoApi(equipoData, idParaApi);
-
-      if (selectedEquipo) {
-        setEquipos(prev =>
-          prev.map(e => (e.id === selectedEquipo.id ? { ...e, ...equipoData } : e))
-        );
-      } else {
-        const newEquipo: Equipo = {
-          ...equipoData,
-          id: String(idGenerado),
-        };
-        setEquipos(prev => [newEquipo, ...prev]);
-      }
+      await saveEquipoApi(equipoData, idParaApi);
+      
+      // Invalidamos las queries para forzar la recarga limpia de TanStack
+      queryClient.invalidateQueries({ queryKey: ['equiposMasterData'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardMasterData'] });
+      
       setIsEquipoModalOpen(false);
     } catch (err) {
       console.error(err);
@@ -195,15 +185,14 @@ export function Equipos() {
     }
   };
 
-  // Lógica Asíncrona del Puente al Backend (Eliminar)
   const handleDeleteEquipo = async (id: string) => {
     if (!window.confirm('¿Está seguro de que desea eliminar este equipo permanentemente?')) {
       return;
     }
-
     try {
       await eliminarEquipoApi(id);
-      setEquipos(prev => prev.filter(e => e.id !== id));
+      queryClient.invalidateQueries({ queryKey: ['equiposMasterData'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardMasterData'] });
       setIsEquipoModalOpen(false);
     } catch (err) {
       console.error(err);
@@ -211,20 +200,13 @@ export function Equipos() {
     }
   };
 
-  // Lógica Asíncrona para registrar Modelos Express desde el Modal de Equipos
   const handleAddModeloAsync = async (modeloData: Omit<Modelo, 'id'>): Promise<Modelo> => {
     try {
-      // 1. Guardamos físicamente en el backend y esperamos el ID real de PostgreSQL
       const idGenerado = await saveModeloApi(modeloData);
+      const nuevoModelo: Modelo = { ...modeloData, id: idGenerado };
       
-      const nuevoModelo: Modelo = {
-        ...modeloData,
-        id: idGenerado,
-      };
-
-      // 2. Impactamos el estado local de la lista de modelos para que el selector se actualice
-      setModelosList(prev => [nuevoModelo, ...prev]);
-
+      // Sincronizamos la caché global
+      queryClient.invalidateQueries({ queryKey: ['equiposMasterData'] });
       return nuevoModelo;
     } catch (err) {
       console.error(err);
@@ -232,15 +214,10 @@ export function Equipos() {
     }
   };
 
-  // Lógica Asíncrona para registrar Marcas Express desde el Modal de Equipos
   const handleAddMarcaAsync = async (marcaNombre: string): Promise<Marca> => {
     try {
-      // Llamamos directo a nuestro nuevo servicio de la API
       const nuevaMarca = await saveMarcaApi(marcaNombre);
-
-      // Impactamos el estado local de marcas para refrescar la interfaz al instante
-      setMarcasList(prev => [...prev, nuevaMarca]);
-
+      queryClient.invalidateQueries({ queryKey: ['equiposMasterData'] });
       return nuevaMarca;
     } catch (err) {
       console.error('Error al registrar la marca express:', err);
@@ -248,30 +225,28 @@ export function Equipos() {
     }
   };
 
-  // Manejadores No-Op requeridos por el modal de repuestos (ya que es de solo lectura aquí)
-  const handleAddRepuesto = (newLink: RepuestoModelo) => {
-    setRepuestosState(prev => [...prev, newLink]);
-  };
+  // No-ops para el modal de repuestos (solo lectura en esta vista)
+  const handleAddRepuesto = (_newLink: RepuestoModelo) => {};
   const handleAddNewRepuesto = (_repuesto: Repuesto, _link: RepuestoModelo) => {};
 
-  const totalEquipos = useMemo(() => {
-    return filteredData.reduce((acc, item) => acc + item.equipos.length, 0);
-  }, [filteredData]);
-
-  // Busca el modelo asociado al equipo activo en el modal de repuestos
-  const modeloForRepuestos = repuestosEquipo
-    ? modelosList.find(m => m.id === repuestosEquipo.modeloId) ?? null
-    : null;
-
-  const getRepuestosCount = (modeloId: string) =>
-    repuestosState.filter(rm => String(rm.modeloId) === String(modeloId)).length;
-
-  if (loading) {
-    return <div className="py-10 text-center text-gray-100">Cargando la flota de equipos reales...</div>;
+  // ==========================================
+  // MANEJO DE ESTADOS DE LA RED
+  // ==========================================
+  if (isLoading) {
+    return (
+      <div className="py-20 flex flex-col items-center justify-center space-y-3">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#0066CC]"></div>
+        <p className="text-sm text-gray-100">Cargando equipos en tiempo real...</p>
+      </div>
+    );
   }
 
-  if (error) {
-    return <div className="py-10 text-center text-red-600">{error}</div>;
+  if (isError) {
+    return (
+      <div className="max-w-md mx-auto my-10 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-center">
+        No se pudieron cargar los datos de los equipos reales.
+      </div>
+    );
   }
 
   return (
@@ -302,7 +277,7 @@ export function Equipos() {
             <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
             <Input
               type="text"
-              placeholder="Buscar por alias, serial, marca, modelo, tipo o cliente..."
+              placeholder="Buscar por serial, marca, modelo, tipo o cliente..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -370,7 +345,6 @@ export function Equipos() {
                                       {marca?.marcaNombre} - {modelo?.nombre}
                                     </p>
                                   </div>
-                                  <Truck className="w-5 h-5 text-[#0066CC] flex-shrink-0" />
                                 </div>
                                 <p className="text-xs text-gray-500 font-mono mb-2">
                                   S/N: {equipo.serial}
@@ -381,7 +355,6 @@ export function Equipos() {
                                   </p>
                                 )}
 
-                                {/* Botones de Acción de Figma Restablecidos */}
                                 <div className="flex gap-2 pt-2 border-t border-gray-100 mt-1">
                                   <Button
                                     size="sm"
@@ -391,8 +364,6 @@ export function Equipos() {
                                   >
                                     <Wrench className="w-3 h-3 mr-1" />
                                     Repuestos
-                                    
-                                    {/* 🛠️ PASO 1 Y 2: Calculamos los enlaces activos de este modelo e inyectamos el círculo azul */}
                                     {equipo.modeloId && getRepuestosCount(equipo.modeloId) > 0 && (
                                       <span className="ml-1.5 bg-[#0066CC] text-white text-[10px] rounded-full w-4 h-4 inline-flex items-center justify-center leading-none font-sans font-medium">
                                         {getRepuestosCount(equipo.modeloId)}
@@ -440,7 +411,7 @@ export function Equipos() {
         onAddModeloAsync={handleAddModeloAsync}
       />
 
-      {/* Modal de Repuestos Inyectado de Figma (Solo Lectura en Equipos) */}
+      {/* Modal de Repuestos */}
       <RepuestosModal
         isOpen={isRepuestosModalOpen}
         onClose={() => setIsRepuestosModalOpen(false)}

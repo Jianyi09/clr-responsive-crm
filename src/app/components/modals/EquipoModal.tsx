@@ -389,7 +389,6 @@ export function EquipoModal({
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-visible">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Truck className="w-5 h-5 text-[#FF6B35]" />
               {isCreating ? 'Registrar Nuevo Equipo' : mode === 'view' ? 'Detalles del Equipo' : 'Editar Equipo'}
             </DialogTitle>
           </DialogHeader>

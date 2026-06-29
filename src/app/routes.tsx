@@ -9,8 +9,17 @@ import { NotFound } from './pages/NotFound';
 import { Layout } from './components/Layout';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth(); // 1. Extraemos 'loading' del contexto
   
+  if (loading) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-gray-50 text-gray-600">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#0066CC] mb-4"></div>
+        <p className="text-sm font-medium">Cargando aplicación...</p>
+      </div>
+    );
+  }
+
   if (!user) {
     return <Navigate to="/login" replace />;
   }

@@ -4,25 +4,25 @@ import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Building2, Lock, User, AlertCircle } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Lock, User, AlertCircle, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '../components/ui/alert';
 
 export function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false); // Bloquea los inputs al enviar los datos
   const { login, user } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Redirigir si ya está logueado
     if (user) {
       navigate('/', { replace: true });
     }
   }, [user, navigate]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -31,11 +31,19 @@ export function Login() {
       return;
     }
 
-    const success = login(username, password);
-    if (success) {
-      navigate('/');
-    } else {
-      setError('Usuario o contraseña incorrectos');
+    try {
+      setIsLoading(true);
+      const result = await login(username, password);
+      
+      if (result.success) {
+        navigate('/');
+      } else {
+        setError(result.message || 'Usuario o contraseña incorrectos');
+      }
+    } catch (err) {
+      setError('Ocurrió un error inesperado al procesar la solicitud.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -68,6 +76,7 @@ export function Login() {
                   type="text"
                   placeholder="Ingrese su usuario"
                   value={username}
+                  disabled={isLoading}
                   onChange={(e) => setUsername(e.target.value)}
                   className="pl-10"
                 />
@@ -83,6 +92,7 @@ export function Login() {
                   type="password"
                   placeholder="Ingrese su contraseña"
                   value={password}
+                  disabled={isLoading}
                   onChange={(e) => setPassword(e.target.value)}
                   className="pl-10"
                 />
@@ -91,18 +101,12 @@ export function Login() {
 
             <Button
               type="submit"
-              className="w-full bg-[#0066CC] hover:bg-[#0052A3] text-white"
+              disabled={isLoading}
+              className="w-full bg-[#0066CC] hover:bg-[#0052A3] text-white flex items-center justify-center gap-2"
             >
-              Iniciar Sesión
+              {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+              {isLoading ? 'Autenticando...' : 'Iniciar Sesión'}
             </Button>
-
-            <div className="pt-4 border-t text-center">
-              <p className="text-sm text-gray-600">Credenciales de prueba:</p>
-              <div className="mt-2 space-y-1 text-xs text-gray-500">
-                <p>Admin: <span className="font-mono">admin / admin123</span></p>
-                <p>Usuario: <span className="font-mono">usuario / usuario123</span></p>
-              </div>
-            </div>
           </form>
         </CardContent>
       </Card>

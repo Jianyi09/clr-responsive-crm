@@ -51,7 +51,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
               {navItems.map((item) => {
                 const isActive = location.pathname === item.path;
                 return (
-                  <Link key={item.path} to={item.path}>
+                  <Link 
+                    key={item.path} 
+                    to={item.path}
+                    onClick={() => {
+                      if (item.path === '/') {
+                        sessionStorage.removeItem('dashboard_selectedEstado');
+                        sessionStorage.removeItem('dashboard_selectedTipo');
+                      }
+                    }}
+                  >
                     <Button
                       variant={isActive ? 'default' : 'ghost'}
                       className={

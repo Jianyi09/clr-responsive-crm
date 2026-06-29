@@ -9,45 +9,57 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  login: (username: string, password: string) => boolean;
+  login: (username: string, password: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   isAdmin: boolean;
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const USERS = [
-  { id: '1', username: 'admin', password: 'admin123', nombre: 'Administrador', rol: 'admin' as const },
-  { id: '2', username: 'usuario', password: 'usuario123', nombre: 'Usuario Normal', rol: 'usuario' as const },
-];
+const API_BASE_URL = 'http://localhost:4000/api';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  useEffect(() => {
+useEffect(() => {
     const savedUser = localStorage.getItem('crm_user');
     if (savedUser) {
       setUser(JSON.parse(savedUser));
     }
+    setLoading(false);
   }, []);
 
-  const login = (username: string, password: string) => {
-    const foundUser = USERS.find(
-      u => u.username === username && u.password === password
-    );
-    
-    if (foundUser) {
-      const userData = {
-        id: foundUser.id,
-        username: foundUser.username,
-        nombre: foundUser.nombre,
-        rol: foundUser.rol,
-      };
-      setUser(userData);
-      localStorage.setItem('crm_user', JSON.stringify(userData));
-      return true;
+  const login = async (username: string, password: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.user) {
+        const userData: User = {
+          id: String(data.user.id),
+          username: data.user.username,
+          nombre: data.user.nombre,
+          rol: data.user.rol,
+        };
+        setUser(userData);
+        localStorage.setItem('crm_user', JSON.stringify(userData));
+        return { success: true };
+      } else {
+        return { success: false, message: data.message || 'Usuario o contraseña incorrectos' };
+      }
+    } catch (error) {
+      console.error('Error de conexión con la API:', error);
+      return { success: false, message: 'No se pudo conectar con el servidor.' };
     }
-    return false;
   };
 
   const logout = () => {
@@ -56,7 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAdmin: user?.rol === 'admin' }}>
+    <AuthContext.Provider value={{ user, login, logout, isAdmin: user?.rol === 'admin', loading }}>
       {children}
     </AuthContext.Provider>
   );
