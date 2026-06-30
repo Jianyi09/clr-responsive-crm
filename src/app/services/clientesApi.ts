@@ -1,8 +1,5 @@
 import { type Cliente } from '../data/mockData';
-
-// Configura aquí tu URL base si no estás usando un proxy en Vite.
-// Si usas proxy, puedes dejarlo como '' (vacío).
-const API_BASE_URL = 'http://localhost:4000';
+import { API_BASE_URL } from './api';
 
 /**
  * 1. LEER CLIENTES (GET /api/clientes)

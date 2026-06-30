@@ -1,7 +1,6 @@
 // services/marcasApi.ts
 import { Marca } from '../data/mockData'; // Ajusta la ruta relativa según tu proyecto
-
-const API_BASE_URL = 'http://localhost:4000';
+import { API_BASE_URL } from './api';
 
 /**
  * 1. CREAR NUEVA MARCA (POST /api/marcas)

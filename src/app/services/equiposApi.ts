@@ -1,5 +1,6 @@
 // services/equipoApi.ts
-import { Cliente, Equipo, Marca, Modelo, TipoEquipo } from '../data/mockData'; // Ajusta la ruta relativa según tu proyecto
+import { Cliente, Equipo, Marca, Modelo, TipoEquipo } from '../data/mockData';
+import { API_BASE_URL } from './api';
 
 // Interfaz exclusiva para la respuesta unificada del dashboard de equipos
 export interface EquiposDashboardPayload {
@@ -9,8 +10,6 @@ export interface EquiposDashboardPayload {
   modelos: Modelo[];
   tiposEquipo: TipoEquipo[];
 }
-
-const API_BASE_URL = 'http://localhost:4000';
 
 /**
  * 1. LEER DATOS INICIALES DEL DASHBOARD (GET /api/equipos/dashboard)

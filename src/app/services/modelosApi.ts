@@ -1,4 +1,5 @@
 import { Modelo, Marca, Repuesto, RepuestoModelo, TipoEquipo } from '../data/mockData';
+import { API_BASE_URL } from './api';
 
 export interface ModelosDashboard {
   marcas: Marca[];
@@ -7,8 +8,6 @@ export interface ModelosDashboard {
   repuestos: Repuesto[];
   links: RepuestoModelo[];
 }
-
-const API_BASE_URL = 'http://localhost:4000';
 
 /**
  * 1. OBTENER TODOS LOS MODELOS (GET /api/modelos)
