@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router';
 import { Card, CardContent } from '../components/ui/card';
+import { API_BASE_URL } from '../services/api';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -69,7 +70,7 @@ export function Clientes() {
   const { data: geoData } = useQuery({
     queryKey: ['catalogUbicaciones'],
     queryFn: async () => {
-      const response = await fetch('http://localhost:4000/api/clientes/ubicaciones');
+      const response = await fetch(`${API_BASE_URL}/api/clientes/ubicaciones`);
       if (!response.ok) throw new Error('Error al conectar catálogo geográfico');
       const data = await response.json();
       return {
