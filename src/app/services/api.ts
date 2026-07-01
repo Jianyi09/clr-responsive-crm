@@ -1,5 +1,6 @@
-// Toma la URL de producción configurada en Vite, o usa el puerto 4000 en desarrollo por defecto
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+// Usa la URL de la API configurada en Vite.
+// En desarrollo la API corre en localhost:4000; en producción, si no hay VITE_API_URL se usa la misma URL del frontend.
+export const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'development' ? 'http://localhost:4000' : '');
 
 /**
  * Helper opcional por si usas fetch nativo.
