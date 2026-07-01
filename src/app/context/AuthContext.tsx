@@ -40,7 +40,14 @@ useEffect(() => {
         body: JSON.stringify({ username, password }),
       });
 
-      const data = await response.json();
+      const rawText = await response.text();
+      let data: any = {};
+      try {
+        data = rawText ? JSON.parse(rawText) : {};
+      } catch (parseError) {
+        console.warn('Respuesta de login no es JSON válido:', rawText, parseError);
+        data = { message: rawText || `Servidor respondió con status ${response.status}` };
+      }
 
       if (response.ok && data.user) {
         const userData: User = {
