@@ -49,6 +49,15 @@ useEffect(() => {
         data = { message: rawText || `Servidor respondió con status ${response.status}` };
       }
 
+      if (!response.ok) {
+        console.error('Login API error', {
+          url: `${API_BASE_URL}/api/auth/login`,
+          status: response.status,
+          statusText: response.statusText,
+          body: rawText,
+        });
+      }
+
       if (response.ok && data.user) {
         const userData: User = {
           id: String(data.user.id),

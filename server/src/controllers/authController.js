@@ -18,6 +18,11 @@ export const loginController = async (req, res) => {
 
     const usuarioDb = result.rows[0];
 
+    if (!usuarioDb?.password) {
+      console.error('loginController: contraseña no encontrada para usuario', usuarioDb);
+      return res.status(500).json({ message: 'Error interno del servidor al autenticar' });
+    }
+
     // 2. Verificar la contraseña ingresada contra el Hash guardado en Postgres
     const passwordCorrecta = await bcrypt.compare(password, usuarioDb.password);
 
@@ -36,7 +41,7 @@ export const loginController = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error en loginController:', error);
+    console.error('Error en loginController:', error?.message || error, error);
     return res.status(500).json({ message: 'Error interno del servidor al autenticar' });
   }
 };
