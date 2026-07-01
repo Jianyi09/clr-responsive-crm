@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client";
-import App from "./app/App.tsx";
+import App from "./app/App";
+
 // Importamos el registro automático del Service Worker generado por vite-plugin-pwa
 import { registerSW } from 'virtual:pwa-register';
 

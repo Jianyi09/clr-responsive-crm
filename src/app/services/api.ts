@@ -1,4 +1,3 @@
-// @ts-ignore
 // Toma la URL de producción configurada en Vite, o usa el puerto 4000 en desarrollo por defecto
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
